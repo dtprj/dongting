@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.raft.RaftRpcData;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.raft.store.RaftLogDataCallback;
 
 import java.nio.ByteBuffer;
@@ -71,55 +70,38 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         }
     }
 
-    // re-used
-    public static class Callback implements PbCallback<AppendReq> {
+    public static class Callback extends AppendReq implements PbCallback<AppendReq> {
 
         // biz header/body are decoded in AppendProcessor.preProcess()
-        private final RaftLogDataCallback logDataCallback;
-
-        private AppendReq result;
-
-        public Callback() {
-            this.logDataCallback = new RaftLogDataCallback(logData -> {
-                if (result.logs == null) {
-                    result.logs = new ArrayList<>();
-                }
-                result.logs.add(new RaftTask(logData, null, null,
-                        logData.type == LogHeader.TYPE_LOG_READ));
-            });
-        }
-
-        @Override
-        public void begin(int len) {
-            result = new AppendReq();
-        }
+        // created lazily: heartbeats without entries don't pay for it
+        private RaftLogDataCallback logDataCallback;
 
         @Override
         public void end(boolean success, Throwable ex) {
             if (!success) {
-                result.clean();
+                clean();
             }
-            result = null;
+            logDataCallback = null;
         }
 
         @Override
         public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
-                    result.groupId = (int) value;
+                    groupId = (int) value;
                     break;
                 case IDX_TERM:
-                    result.term = (int) value;
+                    term = (int) value;
                     break;
                 case IDX_LEADER_ID:
-                    result.leaderId = (int) value;
+                    leaderId = (int) value;
                     break;
                 case IDX_PREV_LOG_TERM:
-                    result.prevLogTerm = (int) value;
+                    prevLogTerm = (int) value;
                     break;
                 case IDX_LOGS_SIZE:
-                    if (result.logs == null) {
-                        result.logs = ParseUtil.createArrayList((int) value);
+                    if (logs == null) {
+                        logs = ParseUtil.createArrayList((int) value);
                     }
                     break;
             }
@@ -129,10 +111,10 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         public void readFix64(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_PREV_LOG_INDEX:
-                    result.prevLogIndex = value;
+                    prevLogIndex = value;
                     break;
                 case IDX_LEADER_COMMIT:
-                    result.leaderCommit = value;
+                    leaderCommit = value;
                     break;
             }
         }
@@ -140,15 +122,18 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         @Override
         public void readFix32(DecodeContext context, int index, int value) {
             if (index == IDX_RAFT_CLUSTER_ID) {
-                result.raftClusterId = value;
+                raftClusterId = value;
             }
         }
 
         @Override
         public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_ENTRIES) {
-                if (result.logs == null) {
-                    result.logs = ParseUtil.createArrayList(8);
+                if (logs == null) {
+                    logs = ParseUtil.createArrayList(8);
+                }
+                if (logDataCallback == null) {
+                    logDataCallback = new RaftLogDataCallback(logs);
                 }
                 ParseUtil.parseNested(context, buf, len, currentPos, logDataCallback);
             }
@@ -156,7 +141,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
 
         @Override
         public AppendReq getResult(DecodeContext context) {
-            return result;
+            return this;
         }
     }
 }

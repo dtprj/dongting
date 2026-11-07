@@ -151,10 +151,8 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     protected final int groupId;
     protected final RaftMember member;
 
-    protected static final DecoderCallbackCreator<AppendResp> APPEND_RESP_DECODER_CALLBACK_CREATOR = ctx -> {
-        AppendResp.Callback c = ((DecodeContextEx) ctx).appendRespCallback();
-        return ctx.toDecoderCallback(c);
-    };
+    protected static final DecoderCallbackCreator<AppendResp> APPEND_RESP_DECODER_CALLBACK_CREATOR =
+            ctx -> ctx.toDecoderCallback(new AppendResp.Callback());
 
     public AbstractLeaderRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;

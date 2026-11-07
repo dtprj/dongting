@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
@@ -42,7 +41,7 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
 
     @Override
     public DecoderCallback<MqPullReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.toDecoderCallback(((DecodeContextEx) context).mqPullReqCallback());
+        return context.toDecoderCallback(new MqPullReqCallback());
     }
 
     @Override

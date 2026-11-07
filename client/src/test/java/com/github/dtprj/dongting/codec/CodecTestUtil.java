@@ -40,7 +40,7 @@ public class CodecTestUtil {
 
     // should test in single thread
     public static DecodeContext createContext() {
-        return DecodeContext.factory.apply(buffer, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
+        return new DecodeContext(buffer, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
     }
 
     // should test in single thread

@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPoolConfig;
 import com.github.dtprj.dongting.codec.BytesDecoderCallback;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.dtmq.proto.DtMq;
@@ -33,7 +34,6 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -124,7 +124,7 @@ class MqSendProcessorTest extends ServerTestBase {
                 message(22, ByteString.EMPTY, body(MAX_BODY)));
         byte[] bytes = req.toByteArray();
         try (TrackingBuffers buffers = new TrackingBuffers()) {
-            DecodeContextEx context = new DecodeContextEx(buffers, null);
+            DecodeContext context = new DecodeContext(buffers, null);
             PbParser parser = new PbParser();
             parser.prepareNext(context, new MqSendReqCallback(), bytes.length);
             try {
@@ -166,7 +166,7 @@ class MqSendProcessorTest extends ServerTestBase {
         return ByteString.copyFrom(bytes);
     }
 
-    private MqSendReqCallback decode(DecodeContextEx context, byte[] bytes, int chunk) {
+    private MqSendReqCallback decode(DecodeContext context, byte[] bytes, int chunk) {
         PbParser parser = new PbParser();
         parser.prepareNext(context, new MqSendReqCallback(), bytes.length);
         ByteBuffer buf = ByteBuffer.wrap(bytes);

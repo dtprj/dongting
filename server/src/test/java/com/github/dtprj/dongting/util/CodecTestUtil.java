@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.util;
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -27,7 +28,6 @@ import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.codec.SimpleEncodable;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import org.junit.jupiter.api.Assertions;
 
 import java.nio.ByteBuffer;
@@ -52,8 +52,8 @@ public class CodecTestUtil {
         return buffers;
     }
 
-    public static DecodeContextEx decodeContext() {
-        return new DecodeContextEx(buffer, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
+    public static DecodeContext decodeContext() {
+        return new DecodeContext(buffer, new byte[DtThread.THREAD_LOCAL_BUFFER_SIZE]);
     }
 
     public static EncodeContext encodeContext() {

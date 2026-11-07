@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.zip.CRC32C;
 
 import static com.github.dtprj.dongting.raft.impl.RaftUtil.updateCrc;
@@ -66,58 +65,58 @@ public class RaftTaskTest {
     @Test
     void testSmallBufferEncodeHeaderOnly() {
         RaftTask task = createTask(0, 0);
-        List<RaftReqData> results = new ArrayList<>();
-        RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
+        ArrayList<RaftTask> results = new ArrayList<>();
+        RaftLogDataCallback callback = new RaftLogDataCallback(results);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
-        assertData(results.get(0), 0, 0);
-        results.get(0).release();
+        assertData(results.get(0).reqData, 0, 0);
+        results.get(0).reqData.release();
     }
 
     @Test
     void testSmallBufferEncodeWithBizHeader() {
         RaftTask task = createTask(10, 0);
-        List<RaftReqData> results = new ArrayList<>();
-        RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
+        ArrayList<RaftTask> results = new ArrayList<>();
+        RaftLogDataCallback callback = new RaftLogDataCallback(results);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
-        assertData(results.get(0), 10, 0);
-        results.get(0).release();
+        assertData(results.get(0).reqData, 10, 0);
+        results.get(0).reqData.release();
     }
 
     @Test
     void testSmallBufferEncodeWithBizBody() {
         RaftTask task = createTask(0, 20);
-        List<RaftReqData> results = new ArrayList<>();
-        RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
+        ArrayList<RaftTask> results = new ArrayList<>();
+        RaftLogDataCallback callback = new RaftLogDataCallback(results);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
-        assertData(results.get(0), 0, 20);
-        results.get(0).release();
+        assertData(results.get(0).reqData, 0, 20);
+        results.get(0).reqData.release();
     }
 
     @Test
     void testSmallBufferEncodeWithBizHeaderAndBody() {
         RaftTask task = createTask(10, 20);
-        List<RaftReqData> results = new ArrayList<>();
-        RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
+        ArrayList<RaftTask> results = new ArrayList<>();
+        RaftLogDataCallback callback = new RaftLogDataCallback(results);
         CodecTestUtil.smallBufferEncodeAndDecode(task, callback);
         assertEquals(1, results.size());
-        assertData(results.get(0), 10, 20);
-        results.get(0).release();
+        assertData(results.get(0).reqData, 10, 20);
+        results.get(0).reqData.release();
     }
 
     private void decodeFull(ByteBuffer buf, int expectedHeaderLen, int expectedBodyLen) {
         buf.position(0);
-        List<RaftReqData> results = new ArrayList<>();
-        RaftLogDataCallback callback = new RaftLogDataCallback(results::add);
+        ArrayList<RaftTask> results = new ArrayList<>();
+        RaftLogDataCallback callback = new RaftLogDataCallback(results);
         Decoder decoder = new Decoder();
         decoder.prepareNext(CodecTestUtil.decodeContext(), callback);
         decoder.decode(buf, buf.remaining(), 0);
         assertTrue(decoder.isFinished());
         assertEquals(1, results.size());
-        assertData(results.get(0), expectedHeaderLen, expectedBodyLen);
-        results.get(0).release();
+        assertData(results.get(0).reqData, expectedHeaderLen, expectedBodyLen);
+        results.get(0).reqData.release();
     }
 
     public static RaftTask createTask(int bizHeaderLen, int bodyLen) {

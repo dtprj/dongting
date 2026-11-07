@@ -18,26 +18,28 @@ package com.github.dtprj.dongting.codec;
 import java.nio.ByteBuffer;
 
 /**
+ * moved from main: only used by tests now
+ *
  * @author huangli
  */
-public class PbBytesCallback implements PbCallback<byte[]> {
+public final class PbStrCallback implements PbCallback<String> {
 
-    private byte[] bs;
+    private String s;
 
     @Override
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == 1) {
-            bs = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
+            s = ParseUtil.parseUTF8(context, buf, fieldLen, currentPos);
         }
     }
 
     @Override
-    public byte[] getResult(DecodeContext context) {
-        return bs;
+    public String getResult(DecodeContext context) {
+        return s;
     }
 
     @Override
     public void end(boolean success, Throwable ex) {
-        bs = null;
+        s = null;
     }
 }

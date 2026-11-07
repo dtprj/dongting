@@ -41,7 +41,6 @@ import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -169,8 +168,7 @@ public class DtKV implements StateMachine {
 
     @Override
     public DecoderCallback<KvReq> createBodyCallback(int bizType, DecodeContext context) {
-        DecodeContextEx e = (DecodeContextEx) context;
-        return context.toDecoderCallback(e.kvReqCallback());
+        return context.toDecoderCallback(new KvReq.KvReqCallback());
     }
 
     @Override

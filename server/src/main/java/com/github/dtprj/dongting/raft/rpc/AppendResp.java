@@ -33,6 +33,12 @@ import java.nio.ByteBuffer;
 //  uint32 suggest_term = 4;
 //  fixed64 suggest_index = 5;
 public class AppendResp extends RaftRpcData implements SimpleEncodable {
+    private static final int IDX_TERM = 1;
+    private static final int IDX_SUCCESS = 2;
+    private static final int IDX_APPEND_CODE = 3;
+    private static final int IDX_SUGGEST_TERM = 4;
+    private static final int IDX_SUGGEST_INDEX = 5;
+
     // public int term;
     public boolean success;
     public int appendCode;
@@ -41,65 +47,52 @@ public class AppendResp extends RaftRpcData implements SimpleEncodable {
 
     @Override
     public int actualSize() {
-        return PbUtil.sizeOfInt32Field(1, term)
-                + PbUtil.sizeOfInt32Field(2, success ? 1 : 0)
-                + PbUtil.sizeOfInt32Field(3, appendCode)
-                + PbUtil.sizeOfInt32Field(4, suggestTerm)
-                + PbUtil.sizeOfFix64Field(5, suggestIndex);
+        return PbUtil.sizeOfInt32Field(IDX_TERM, term)
+                + PbUtil.sizeOfInt32Field(IDX_SUCCESS, success ? 1 : 0)
+                + PbUtil.sizeOfInt32Field(IDX_APPEND_CODE, appendCode)
+                + PbUtil.sizeOfInt32Field(IDX_SUGGEST_TERM, suggestTerm)
+                + PbUtil.sizeOfFix64Field(IDX_SUGGEST_INDEX, suggestIndex);
     }
 
     @Override
     public void encode(ByteBuffer buf) {
-        PbUtil.writeInt32Field(buf, 1, term);
-        PbUtil.writeInt32Field(buf, 2, success ? 1 : 0);
-        PbUtil.writeInt32Field(buf, 3, appendCode);
-        PbUtil.writeInt32Field(buf, 4, suggestTerm);
-        PbUtil.writeFix64Field(buf, 5, suggestIndex);
+        PbUtil.writeInt32Field(buf, IDX_TERM, term);
+        PbUtil.writeInt32Field(buf, IDX_SUCCESS, success ? 1 : 0);
+        PbUtil.writeInt32Field(buf, IDX_APPEND_CODE, appendCode);
+        PbUtil.writeInt32Field(buf, IDX_SUGGEST_TERM, suggestTerm);
+        PbUtil.writeFix64Field(buf, IDX_SUGGEST_INDEX, suggestIndex);
     }
 
-    // re-used
-    public static class Callback implements PbCallback<AppendResp> {
-
-        private AppendResp result;
-
-        @Override
-        public void begin(int len) {
-            result = new AppendResp();
-        }
-
-        @Override
-        public void end(boolean success, Throwable ex) {
-            result = null;
-        }
+    public static class Callback extends AppendResp implements PbCallback<AppendResp> {
 
         @Override
         public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
-                case 1:
-                    result.term = (int) value;
+                case IDX_TERM:
+                    term = (int) value;
                     break;
-                case 2:
-                    result.success = value != 0;
+                case IDX_SUCCESS:
+                    success = value != 0;
                     break;
-                case 3:
-                    result.appendCode = (int) value;
+                case IDX_APPEND_CODE:
+                    appendCode = (int) value;
                     break;
-                case 4:
-                    result.suggestTerm = (int) value;
+                case IDX_SUGGEST_TERM:
+                    suggestTerm = (int) value;
                     break;
             }
         }
 
         @Override
         public void readFix64(DecodeContext context, int index, long value) {
-            if (index == 5) {
-                result.suggestIndex = value;
+            if (index == IDX_SUGGEST_INDEX) {
+                suggestIndex = value;
             }
         }
 
         @Override
         public AppendResp getResult(DecodeContext context) {
-            return result;
+            return this;
         }
     }
 }

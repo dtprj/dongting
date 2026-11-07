@@ -33,16 +33,16 @@ import java.util.UUID;
  * @author huangli
  */
 public class KvReq extends RaftRpcData implements Encodable {
-    public static final int IDX_GROUP_ID = 1;
-    public static final int IDX_KEY = 2;
-    public static final int IDX_VALUE = 3;
-    public static final int IDX_EXPECT_VALUE = 4;
-    public static final int IDX_OWNER_UUID1 = 5;
-    public static final int IDX_OWNER_UUID2 = 6;
-    public static final int IDX_TTL_MILLIS = 7;
-    public static final int IDX_KEYS_SIZE = 8;
-    public static final int IDX_KEYS = 9;
-    public static final int IDX_VALUES = 10;
+    private static final int IDX_GROUP_ID = 1;
+    private static final int IDX_KEY = 2;
+    private static final int IDX_VALUE = 3;
+    private static final int IDX_EXPECT_VALUE = 4;
+    private static final int IDX_OWNER_UUID1 = 5;
+    private static final int IDX_OWNER_UUID2 = 6;
+    private static final int IDX_TTL_MILLIS = 7;
+    private static final int IDX_KEYS_SIZE = 8;
+    private static final int IDX_KEYS = 9;
+    private static final int IDX_VALUES = 10;
 
     public byte[] key;
     public byte[] value;
@@ -172,35 +172,20 @@ public class KvReq extends RaftRpcData implements Encodable {
     /**
      * @author huangli
      */
-    // re-used
-    public static class KvReqCallback implements PbCallback<KvReq> {
+    public static class KvReqCallback extends KvReq implements PbCallback<KvReq> {
 
         private int keysSize;
         private long uuid1;
         private long uuid2;
-        KvReq req;
-
-        @Override
-        public void begin(int len) {
-            req = new KvReq();
-        }
-
-        @Override
-        public void end(boolean success, Throwable ex) {
-            req = null;
-            keysSize = 0;
-            uuid1 = 0;
-            uuid2 = 0;
-        }
 
         @Override
         public void readVarNumber(DecodeContext context, int index, long value) {
             switch (index) {
                 case IDX_GROUP_ID:
-                    req.groupId = (int) value;
+                    groupId = (int) value;
                     break;
                 case IDX_TTL_MILLIS:
-                    req.ttlMillis = value;
+                    ttlMillis = value;
                     break;
                 case IDX_KEYS_SIZE:
                     keysSize = (int) value;
@@ -212,31 +197,31 @@ public class KvReq extends RaftRpcData implements Encodable {
         public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             switch (index) {
                 case IDX_KEY:
-                    req.key = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
+                    key = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
                 case IDX_VALUE:
-                    req.value = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
+                    value = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
                 case IDX_KEYS:
-                    if (req.keys == null) {
-                        req.keys = ParseUtil.createArrayList(keysSize);
+                    if (keys == null) {
+                        keys = ParseUtil.createArrayList(keysSize);
                     }
                     byte[] k = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     if (k != null) {
-                        req.keys.add(k);
+                        keys.add(k);
                     }
                     break;
                 case IDX_VALUES:
-                    if (req.values == null) {
-                        req.values = ParseUtil.createArrayList(keysSize);
+                    if (values == null) {
+                        values = ParseUtil.createArrayList(keysSize);
                     }
                     byte[] v = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     if (v != null) {
-                        req.values.add(v);
+                        values.add(v);
                     }
                     break;
                 case IDX_EXPECT_VALUE:
-                    req.expectValue = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
+                    expectValue = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
             }
         }
@@ -255,11 +240,11 @@ public class KvReq extends RaftRpcData implements Encodable {
 
         @Override
         public KvReq getResult(DecodeContext context) {
-            req.checkKeysAndValues();
+            checkKeysAndValues();
             if (uuid1 != 0 && uuid2 != 0) {
-                req.ownerUuid = new UUID(uuid1, uuid2);
+                ownerUuid = new UUID(uuid1, uuid2);
             }
-            return req;
+            return this;
         }
     }
 }

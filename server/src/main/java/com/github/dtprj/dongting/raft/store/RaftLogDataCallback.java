@@ -19,21 +19,21 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.nio.ByteBuffer;
-import java.util.function.Consumer;
+import java.util.ArrayList;
 import java.util.zip.CRC32C;
 
 /**
  * @author huangli
  */
-// re-used
 public class RaftLogDataCallback implements DecoderCallback<Void> {
 
-    private final Consumer<RaftReqData> consumer;
+    private final ArrayList<RaftTask> logs;
 
     private RefBuffer fullRefBuffer;
 
@@ -53,8 +53,8 @@ public class RaftLogDataCallback implements DecoderCallback<Void> {
     private static final int STATUS_FINISH_BIZ_HEADER_CRC = 3;
     private static final int STATUS_FINISH_BIZ_BODY = 4;
 
-    public RaftLogDataCallback(Consumer<RaftReqData> consumer) {
-        this.consumer = consumer;
+    public RaftLogDataCallback(ArrayList<RaftTask> logs) {
+        this.logs = logs;
     }
 
     private void reset() {
@@ -235,7 +235,7 @@ public class RaftLogDataCallback implements DecoderCallback<Void> {
         LogHeader.readFields(fullBuffer, reqData);
         fullBuffer.position(0);
         totalParsedBytes += totalLen;
-        consumer.accept(reqData);
+        logs.add(new RaftTask(reqData, null, null, reqData.type == LogHeader.TYPE_LOG_READ));
         reset();
     }
 

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -42,7 +41,6 @@ import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.RaftServerEventPush;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
@@ -125,8 +123,6 @@ public class RaftServer extends AbstractLifeCircle implements ChannelListener {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftFactory);
-        // always use DecodeContextEx in server side
-        DecodeContext.factory = DecodeContextEx::new;
         this.serverConfig = serverConfig;
         this.raftFactory = raftFactory;
         this.groupCustomizer = groupCustomizer;

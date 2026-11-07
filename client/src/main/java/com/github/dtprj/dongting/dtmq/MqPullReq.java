@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.dtmq;
 /**
  * @author huangli
  */
-public final class MqPullReq {
+public class MqPullReq {
     public static final int IDX_GROUP_ID = 1;
     public static final int IDX_QUEUES_SIZE = 2;
     public static final int IDX_LIMIT = 3;

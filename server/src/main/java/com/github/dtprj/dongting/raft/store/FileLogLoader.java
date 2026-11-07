@@ -97,7 +97,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.buffers = t.buffers;
         this.readBufferRef = t.buffers.borrowLocal(readBufferSize);
         this.readBuffer = readBufferRef.getBuffer();
-        this.decodeContext = DecodeContext.factory.apply(t.buffers, t.threadLocalBuffer);
+        this.decodeContext = new DecodeContext(t.buffers, t.threadLocalBuffer);
         this.decoder = new Decoder();
         reset();
     }

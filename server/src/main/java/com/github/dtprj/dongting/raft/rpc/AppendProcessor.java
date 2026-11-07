@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -73,8 +72,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
-            AppendReq.Callback c = ((DecodeContextEx) context).appendReqCallback();
-            return context.toDecoderCallback(c);
+            return context.toDecoderCallback(new AppendReq.Callback());
         } else if (command == Commands.RAFT_INSTALL_SNAPSHOT) {
             return context.toDecoderCallback(new InstallSnapshotReq.Callback());
         } else {

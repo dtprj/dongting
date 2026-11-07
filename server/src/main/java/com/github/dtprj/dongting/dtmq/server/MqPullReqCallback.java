@@ -27,26 +27,19 @@ import java.util.Arrays;
 /**
  * @author huangli
  */
-public final class MqPullReqCallback implements PbCallback<MqPullReq> {
+public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqPullReq> {
     private static final int MIN_CAPACITY = 16;
 
     private final QueueCallback queueCallback = new QueueCallback();
-    private MqPullReq req;
-    private int declaredSize;
+    // -1 means the request doesn't declare queues_size
+    private int declaredSize = -1;
     private int queueCount;
-
-    @Override
-    public void begin(int len) {
-        req = new MqPullReq();
-        declaredSize = -1;
-        queueCount = 0;
-    }
 
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
         switch (index) {
             case MqPullReq.IDX_GROUP_ID:
-                req.groupId = (int) value;
+                groupId = (int) value;
                 break;
             case MqPullReq.IDX_QUEUES_SIZE:
                 if (value < 0 || value > Integer.MAX_VALUE) {
@@ -55,13 +48,13 @@ public final class MqPullReqCallback implements PbCallback<MqPullReq> {
                 declaredSize = (int) value;
                 break;
             case MqPullReq.IDX_LIMIT:
-                req.limit = (int) value;
+                limit = (int) value;
                 break;
             case MqPullReq.IDX_BYTES_LIMIT:
-                req.bytesLimit = (int) value;
+                bytesLimit = (int) value;
                 break;
             case MqPullReq.IDX_WAIT_MILLIS:
-                req.waitMillis = value;
+                waitMillis = value;
                 break;
         }
     }
@@ -72,14 +65,14 @@ public final class MqPullReqCallback implements PbCallback<MqPullReq> {
             return;
         }
         if (currentPos == 0) {
-            if (req.queueIds == null) {
+            if (queueIds == null) {
                 int capacity = initialCapacity();
-                req.queueIds = new long[capacity];
-                req.fromSeqs = new long[capacity];
-            } else if (queueCount == req.queueIds.length) {
+                queueIds = new long[capacity];
+                fromSeqs = new long[capacity];
+            } else if (queueCount == queueIds.length) {
                 int capacity = (int) Math.min((long) queueCount * 2, Integer.MAX_VALUE - 8);
-                req.queueIds = Arrays.copyOf(req.queueIds, capacity);
-                req.fromSeqs = Arrays.copyOf(req.fromSeqs, capacity);
+                queueIds = Arrays.copyOf(queueIds, capacity);
+                fromSeqs = Arrays.copyOf(fromSeqs, capacity);
             }
         }
         if (ParseUtil.parseNested(context, buf, fieldLen, currentPos, queueCallback) != null) {
@@ -97,20 +90,13 @@ public final class MqPullReqCallback implements PbCallback<MqPullReq> {
         if (declaredSize >= 0 && declaredSize != queueCount) {
             throw new PbException("queues_size mismatch");
         }
-        if (req.queueIds == null) {
-            req.queueIds = req.fromSeqs = new long[0];
-        } else if (req.queueIds.length != queueCount) {
-            req.queueIds = Arrays.copyOf(req.queueIds, queueCount);
-            req.fromSeqs = Arrays.copyOf(req.fromSeqs, queueCount);
+        if (queueIds == null) {
+            queueIds = fromSeqs = new long[0];
+        } else if (queueIds.length != queueCount) {
+            queueIds = Arrays.copyOf(queueIds, queueCount);
+            fromSeqs = Arrays.copyOf(fromSeqs, queueCount);
         }
-        MqPullReq result = req;
-        req = null;
-        return result;
-    }
-
-    @Override
-    public void end(boolean success, Throwable ex) {
-        req = null;
+        return this;
     }
 
     private final class QueueCallback implements PbCallback<Boolean> {
@@ -134,8 +120,8 @@ public final class MqPullReqCallback implements PbCallback<MqPullReq> {
 
         @Override
         public Boolean getResult(DecodeContext context) {
-            req.queueIds[queueCount] = queueId;
-            req.fromSeqs[queueCount] = fromSeq;
+            queueIds[queueCount] = queueId;
+            fromSeqs[queueCount] = fromSeq;
             return Boolean.TRUE;
         }
     }

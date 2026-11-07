@@ -47,7 +47,7 @@ class KvClientProcessor extends ReqProcessor<Object> {
         if (command == Commands.DTKV_WATCH_NOTIFY_PUSH) {
             return context.toDecoderCallback(new WatchNotifyReq.Callback());
         } else if (command == Commands.DTKV_LOCK_PUSH) {
-            return context.toDecoderCallback(context.kvReqCallback());
+            return context.toDecoderCallback(new KvReq.KvReqCallback());
         } else if (command == Commands.RAFT_SERVER_EVENT_PUSH) {
             return context.toDecoderCallback(new RaftServerEventPush.Callback());
         } else {

@@ -380,7 +380,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channelIndex++;
         }
         // the worker thread is multiplexing, so can't use threadLocal DecodeContext
-        DecodeContext decodeContext = DecodeContext.factory.apply(workerStatus.buffers, DtThread.currentDtThread().threadLocalBuffer);
+        DecodeContext decodeContext = new DecodeContext(workerStatus.buffers, DtThread.currentDtThread().threadLocalBuffer);
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++, decodeContext);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.subQueue.setSelectionKey(selectionKey);

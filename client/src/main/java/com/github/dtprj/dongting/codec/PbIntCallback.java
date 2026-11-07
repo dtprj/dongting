@@ -21,7 +21,7 @@ package com.github.dtprj.dongting.codec;
 public final class PbIntCallback implements PbCallback<Integer> {
 
     public static DecoderCallbackCreator<Integer> CALLBACK_CREATOR =
-            ctx -> ctx.toDecoderCallback(ctx.cachedPbIntCallback());
+            ctx -> ctx.toDecoderCallback(new PbIntCallback());
 
     @Override
     public void readFix32(DecodeContext context, int index, int value) {

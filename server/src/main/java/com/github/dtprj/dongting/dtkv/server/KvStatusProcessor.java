@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.PbIntCallback;
 import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -40,7 +41,7 @@ class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
 
     @Override
     public DecoderCallback<Integer> createDecoderCallback(int command, DecodeContext context) {
-        return context.toDecoderCallback(context.cachedPbIntCallback());
+        return context.toDecoderCallback(new PbIntCallback());
     }
 
     @Override

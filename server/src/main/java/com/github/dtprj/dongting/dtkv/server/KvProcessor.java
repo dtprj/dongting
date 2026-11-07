@@ -61,7 +61,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
 
     @Override
     public DecoderCallback<KvReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.toDecoderCallback(context.kvReqCallback());
+        return context.toDecoderCallback(new KvReq.KvReqCallback());
     }
 
     @Override

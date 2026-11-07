@@ -45,6 +45,8 @@ public class Decoder {
             callback.end(success, ex);
         } finally {
             context.status = null;
+            // don't hold the callback (and whatever it references) after decode finished
+            this.callback = null;
         }
     }
 

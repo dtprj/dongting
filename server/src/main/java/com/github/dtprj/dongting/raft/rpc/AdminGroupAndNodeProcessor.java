@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.PbIntCallback;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
@@ -93,7 +94,7 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
                 return context.toDecoderCallback(new AdminAddNodeReq());
             case Commands.RAFT_ADMIN_REMOVE_GROUP:
             case Commands.RAFT_ADMIN_REMOVE_NODE:
-                return context.toDecoderCallback(context.cachedPbIntCallback());
+                return context.toDecoderCallback(new PbIntCallback());
             case Commands.RAFT_ADMIN_LIST_NODES:
             case Commands.RAFT_ADMIN_LIST_GROUPS:
                 return DecoderCallback.VOID_DECODE_CALLBACK;

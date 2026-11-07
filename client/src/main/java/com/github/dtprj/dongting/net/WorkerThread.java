@@ -38,7 +38,7 @@ public final class WorkerThread extends DtThread {
         super(worker, name, buffers);
         this.ts = ts;
         this.worker = worker;
-        this.decodeContext = DecodeContext.factory.apply(buffers, threadLocalBuffer);
+        this.decodeContext = new DecodeContext(buffers, threadLocalBuffer);
     }
 
     public static WorkerThread currentWorkerThread() {

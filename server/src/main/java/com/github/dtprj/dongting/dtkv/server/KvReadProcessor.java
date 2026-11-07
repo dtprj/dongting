@@ -34,7 +34,6 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -59,8 +58,7 @@ final class KvReadProcessor extends RaftProcessor<KvReq> {
 
     @Override
     public DecoderCallback<KvReq> createDecoderCallback(int cmd, DecodeContext context) {
-        DecodeContextEx e = (DecodeContextEx) context;
-        return context.toDecoderCallback(e.kvReqCallback());
+        return context.toDecoderCallback(new KvReq.KvReqCallback());
     }
 
     @Override

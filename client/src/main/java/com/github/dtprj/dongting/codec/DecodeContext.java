@@ -16,11 +16,8 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.Buffers;
-import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-
-import java.util.function.BiFunction;
 
 /**
  * Require decode in DtThread.
@@ -42,17 +39,9 @@ public class DecodeContext {
 
     // caches
     private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
-    private PbIntCallback pbIntCallback;
-    private PbLongCallback pbLongCallback;
-    private PbStrCallback pbStrCallback;
-    private PbBytesCallback pbBytesCallback;
-    private KvReq.KvReqCallback kvReqCallback;
     private StrDecoderCallback strDecoderCallback;
 
-    // replace in server side to create DecodeContextEx
-    public static BiFunction<Buffers, byte[], DecodeContext> factory = DecodeContext::new;
-
-    protected DecodeContext(Buffers f, byte[] b) {
+    public DecodeContext(Buffers f, byte[] b) {
         this.buffers = f;
         this.threadLocalBuffer = b;
     }
@@ -129,41 +118,6 @@ public class DecodeContext {
         }
         c.prepareNext(callback);
         return (DecoderCallback<T>) c;
-    }
-
-    public PbIntCallback cachedPbIntCallback() {
-        if (pbIntCallback == null) {
-            pbIntCallback = new PbIntCallback();
-        }
-        return pbIntCallback;
-    }
-
-    public PbLongCallback cachedPbLongCallback() {
-        if (pbLongCallback == null) {
-            pbLongCallback = new PbLongCallback();
-        }
-        return pbLongCallback;
-    }
-
-    public PbStrCallback cachedPbStrCallback() {
-        if (pbStrCallback == null) {
-            pbStrCallback = new PbStrCallback();
-        }
-        return pbStrCallback;
-    }
-
-    public PbBytesCallback cachedPbBytesCallback() {
-        if (pbBytesCallback == null) {
-            pbBytesCallback = new PbBytesCallback();
-        }
-        return pbBytesCallback;
-    }
-
-    public KvReq.KvReqCallback kvReqCallback() {
-        if (kvReqCallback == null) {
-            kvReqCallback = new KvReq.KvReqCallback();
-        }
-        return kvReqCallback;
     }
 
     public StrDecoderCallback strDecoderCallback() {
