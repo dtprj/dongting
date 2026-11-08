@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.LogHeader;
@@ -109,10 +110,11 @@ final class MqIdxReader extends FiberFrame<Boolean> {
                                  MqIdxBlock block, long seq, long endSeq, boolean collectDisk) {
         MqIdxManager mgr = pull.mq.manager;
         RaftStatusImpl rs = pull.mq.raftStatus;
+        TailCache tailCache = rs.tailCache;
         while (true) {
             long pos = mgr.getIdxItemInBlock(block, seq);
             long raftIndex = mgr.lastGetRaftIndex;
-            RaftTask task = raftIndex == 0 ? null : rs.tailCache.get(raftIndex);
+            RaftTask task = raftIndex == 0 ? null : tailCache.get(raftIndex);
             if (!consumeItem(pull, result, endSeq, seq, pos, mgr.lastGetSize, task, collectDisk)) {
                 return;
             }
@@ -244,8 +246,9 @@ final class MqIdxReader extends FiberFrame<Boolean> {
 
     private FrameCallResult collect() {
         RaftStatusImpl rs = pull.mq.raftStatus;
+        TailCache tailCache = rs.tailCache;
         while (true) {
-            RaftTask task = raftIndex == 0 ? null : rs.tailCache.get(raftIndex);
+            RaftTask task = raftIndex == 0 ? null : tailCache.get(raftIndex);
             if (!consumeItem(pull, result, endSeq, seq, pos, size, task, true)) {
                 return justReturn(true);
             }

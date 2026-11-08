@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
 
 import java.util.concurrent.TimeUnit;
 
@@ -48,10 +49,15 @@ public final class TailCache {
     }
 
     public RaftTask get(long index) {
-        if (firstIndex < 0 || index < firstIndex || index >= nextWriteIndex()) {
+        long first = firstIndex;
+        if (first <= 0 || index < first) {
             return null;
         }
-        return cache.get((int) (index - firstIndex));
+        long offset = index - first;
+        if (offset >= cache.size()) {
+            return null;
+        }
+        return cache.get((int) offset);
     }
 
     private long nextWriteIndex() {
@@ -125,10 +131,9 @@ public final class TailCache {
 
     private void release(RaftTask t) {
         cacheCount--;
-        cacheBytes = Math.max(cacheBytes - t.reqData.totalLen, 0);
-        if (t.reqData != null) {
-            t.reqData.release();
-        }
+        RaftReqData reqData = t.reqData;
+        cacheBytes = Math.max(cacheBytes - reqData.totalLen, 0);
+        reqData.release();
     }
 
     private void remove(long index) {
