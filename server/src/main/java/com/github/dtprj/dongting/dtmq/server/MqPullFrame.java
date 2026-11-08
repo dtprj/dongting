@@ -41,9 +41,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-/** Returns a pre-encoded response; the caller sends it or calls clean(). */
+/**
+ * Returns a pre-encoded response; the caller sends it or calls clean().
+ */
 public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
-    /** Truncated queues return only a retry cursor. The next cursor is fromSeq + queueCount. */
+    /**
+     * Truncated queues return only a retry cursor. The next cursor is fromSeq + queueCount.
+     */
     public static final class QueueResult {
         public final long queueId;
         final long requestedSeq;
@@ -82,15 +86,12 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     DtChannel channel;
     final int limit;
     final int bytesLimit;
-    private final long waitNanos;
+    private final boolean longPolling;
+    private final long longPollingWaitEnd;
     private final DtTime deadline;
 
     private boolean cancelled;
-    // absolute end of this long poll; 0 until the first scan anchors it
-    private long waitEnd;
     private FiberCondition changed;
-    // mq.changeVersion snapshot; a mismatch after a scan means appends landed during it
-    private long changeVersion;
 
     // flat item arrays shared by all queues; msgPositions is allocated lazily, disk items only
     private long[] msgPositions;
@@ -98,10 +99,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     private RefBuffer[] cached;
     private int count;
     private int bytes;
-    private int bodySize;
     private RefBuffer buffer;
-    // gathering-write segments for large zero-copy items
-    private List<ByteBuffer> segments;
 
     MqPullFrame(DtMQ mq, long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
                 long waitMillis, DtTime deadline) {
@@ -116,7 +114,13 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         this.mq = mq;
         this.limit = limit;
         this.bytesLimit = bytesLimit;
-        this.waitNanos = TimeUnit.MILLISECONDS.toNanos(waitMillis);
+        if (waitMillis > 0) {
+            this.longPolling = true;
+            this.longPollingWaitEnd = mq.groupConfig.ts.nanoTime + TimeUnit.MILLISECONDS.toNanos(waitMillis);
+        } else {
+            this.longPolling = false;
+            this.longPollingWaitEnd = 0;
+        }
         this.deadline = Objects.requireNonNull(deadline);
         this.queueIds = queueIds;
         this.fromSeqs = fromSeqs;
@@ -149,7 +153,9 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         }
     }
 
-    /** Raft thread only; does not interrupt in-flight I/O or release its buffers prematurely. */
+    /**
+     * Raft thread only; does not interrupt in-flight I/O or release its buffers prematurely.
+     */
     public void cancel() {
         cancelled = true;
         if (changed != null) {
@@ -197,12 +203,6 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     private FrameCallResult scan(Void unused) {
         releaseBuffers();
         checkCancelled();
-        if (waitEnd == 0) {
-            // fresh anchor; a stale one would shorten the wait
-            mq.groupConfig.ts.refresh(1);
-            waitEnd = mq.groupConfig.ts.nanoTime + waitNanos;
-        }
-        changeVersion = mq.changeVersion;
         count = 0;
         bytes = 0;
         QueueResult[] results = this.results;
@@ -244,10 +244,11 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                 }
             }
         }
-        return readQueue(0);
+        // readQueue re-checks this before waiting: a mismatch means appends landed during queue reads
+        return readQueue(0, mq.changeVersion);
     }
 
-    private FrameCallResult readQueue(int idx) {
+    private FrameCallResult readQueue(int idx, long changeVersion) {
         checkCancelled();
         while (results != null && idx < results.length && hasCapacity()) {
             QueueResult r = results[idx];
@@ -261,7 +262,8 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                     int next = idx + 1;
                     // a false return means stale state mid-collect: the whole scan restarts
                     return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r),
-                            v -> Boolean.TRUE.equals(v) ? readQueue(next) : Fiber.resume(null, this::scan));
+                            v -> Boolean.TRUE.equals(v) ? readQueue(next, changeVersion)
+                                    : Fiber.resume(null, this::scan));
                 }
             }
             idx++;
@@ -279,8 +281,8 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                 }
             }
         }
-        long rest = waitEnd - mq.groupConfig.ts.nanoTime;
-        if (waitNanos == 0 || rest <= 0) {
+        long rest = longPollingWaitEnd - mq.groupConfig.ts.nanoTime;
+        if (!longPolling || rest <= 0) {
             return prepareResponse();
         }
         if (mq.changeVersion != changeVersion) {
@@ -333,7 +335,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
 
     private FrameCallResult prepareResponse() {
         int headerSize = MqPullRespPacket.headerSize(queueIds, fromSeqs, results, bytes);
-        bodySize = Math.addExact(headerSize, bytes);
+        int bodySize = Math.addExact(headerSize, bytes);
         // zero-copy bytes are excluded from the borrowed response buffer size
         int zeroCopyBytes = 0;
         for (int i = 0; i < count; i++) {
@@ -390,10 +392,9 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
             dest.flip();
         } else {
             addSegment(dest, segmentStart, segs);
-            segments = segs;
         }
         if (offsets == null) {
-            return afterRead(true);
+            return afterRead(true, bodySize, segs);
         }
         int readCount = 0;
         for (int i = 0; i < count; i++) {
@@ -404,8 +405,9 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                 offsets[readCount++] = offsets[i];
             }
         }
+        List<ByteBuffer> segments = segs;
         return Fiber.call(mq.raftLog.read(msgPositions, msgSizes, offsets, readCount, dest, this::isCancelled),
-                this::afterRead);
+                v -> afterRead(v, bodySize, segments));
     }
 
     private void addSegment(ByteBuffer dest, int start, ArrayList<ByteBuffer> segs) {
@@ -435,7 +437,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         return true;
     }
 
-    private FrameCallResult afterRead(boolean success) {
+    private FrameCallResult afterRead(boolean success, int bodySize, List<ByteBuffer> segments) {
         checkCancelled();
         if (!success || !resetPositionsValid()) {
             return Fiber.resume(null, this::scan);
@@ -443,7 +445,6 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         MqPullRespPacket result = new MqPullRespPacket(buffer, cached, segments, bodySize);
         buffer = null;
         cached = null;
-        segments = null;
         return justReturn(result);
     }
 
@@ -451,8 +452,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         if (changed != null) {
             return;
         }
-        // registration stays until doFinally; signals missed during scans are covered
-        // by the changeVersion re-check
+        // registration stays until doFinally; signals missed before it are covered by the changeVersion re-check
         changed = mq.groupConfig.fiberGroup.newCondition("mqPull");
         for (long id : queueIds) {
             HashSet<MqPullFrame> set = mq.waitingPulls.get(id);
@@ -492,7 +492,6 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                 }
             }
         }
-        segments = null;
     }
 
     @Override
