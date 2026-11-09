@@ -90,11 +90,10 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
                 MqPullReq req = reqInfo.reqFrame.getBody();
                 try {
                     pull = mq.pull(req.queueIds, req.fromSeqs, req.limit, req.bytesLimit,
-                            req.waitMillis, reqInfo.reqContext.getTimeout());
+                            req.waitMillis, reqInfo.reqContext.getTimeout(), reqInfo.reqContext.getDtChannel());
                 } catch (IllegalArgumentException e) {
                     throw new NetCodeException(CmdCodes.CLIENT_ERROR, e.getMessage(), null);
                 }
-                pull.channel = reqInfo.reqContext.getDtChannel();
             }
             RaftGroupImpl group = (RaftGroupImpl) reqInfo.raftGroup;
             if (!group.isLeaseReadValid(group.groupComponents.raftStatus.ts, reqInfo.reqContext.getTimeout())) {

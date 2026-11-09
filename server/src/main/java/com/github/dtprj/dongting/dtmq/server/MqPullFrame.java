@@ -81,7 +81,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     final DtMQ mq;
     final long[] queueIds;
     final long[] fromSeqs;
-    DtChannel channel;
+    private final DtChannel channel;
     final int limit;
     final int bytesLimit;
     private final boolean longPolling;
@@ -103,7 +103,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
     private RefBuffer buffer;
 
     MqPullFrame(DtMQ mq, long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
-                long waitMillis, DtTime deadline) {
+                long waitMillis, DtTime deadline, DtChannel channel) {
         if (queueIds.length == 0 || queueIds.length != fromSeqs.length) {
             throw new IllegalArgumentException("queueIds and fromSeqs must have the same nonzero length");
         }
@@ -113,6 +113,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
             throw new IllegalArgumentException("invalid waitMillis: " + waitMillis);
         }
         this.mq = mq;
+        this.channel = channel;
         this.limit = limit;
         this.bytesLimit = bytesLimit;
         if (waitMillis > 0) {

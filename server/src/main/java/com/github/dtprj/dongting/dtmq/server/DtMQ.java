@@ -98,10 +98,10 @@ public class DtMQ implements StateMachine {
      * The frame retains queueIds/fromSeqs until completion; callers must not modify them.
      * The caller owns the linearizability point: validate lease read before calling; the frame never re-checks. */
     public MqPullFrame pull(long[] queueIds, long[] fromSeqs, int limit, int bytesLimit,
-                            long waitMillis, DtTime deadline) {
+                            long waitMillis, DtTime deadline, DtChannel channel) {
         return new MqPullFrame(this, queueIds, fromSeqs,
                 Math.min(limit, serverConfig.maxPullLimit),
-                Math.min(bytesLimit, serverConfig.maxPullBytesLimit), waitMillis, deadline);
+                Math.min(bytesLimit, serverConfig.maxPullBytesLimit), waitMillis, deadline, channel);
     }
 
     /** Raft thread only; individual requests can also be cancelled through MqPullFrame.cancel(). */

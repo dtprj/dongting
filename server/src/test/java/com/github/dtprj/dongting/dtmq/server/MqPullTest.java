@@ -231,7 +231,7 @@ class MqPullTest extends BaseFiberTest {
     private Pull pull(long[] ids, long[] seqs, int limit, int bytesLimit, long waitMillis) throws Exception {
         AtomicReference<Pull> result = new AtomicReference<>();
         doInFiber(() -> result.set(new Pull(mq.pull(ids, seqs, limit, bytesLimit, waitMillis,
-                new DtTime(tick(30_000), TimeUnit.MILLISECONDS)))));
+                new DtTime(tick(30_000), TimeUnit.MILLISECONDS), null))));
         return result.get();
     }
 
