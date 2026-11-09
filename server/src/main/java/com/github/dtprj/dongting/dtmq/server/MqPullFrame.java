@@ -90,6 +90,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
 
     // created lazily, one entry per scanned queue; null entry means idle and encodes from fromSeqs
     QueueResult[] results;
+    private long[] scannedNextSeqs;
 
     private boolean cancelled;
     private FiberCondition changed;
@@ -207,6 +208,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         checkCancelled();
         count = 0;
         bytes = 0;
+        scannedNextSeqs = null;
         QueueResult[] results = this.results;
         if (results != null) {
             for (QueueResult r : results) {
@@ -246,11 +248,10 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                 }
             }
         }
-        // readQueue re-checks this before waiting: a mismatch means appends landed during queue reads
-        return readQueue(0, mq.changeVersion);
+        return readQueue(0);
     }
 
-    private FrameCallResult readQueue(int idx, long changeVersion) {
+    private FrameCallResult readQueue(int idx) {
         checkCancelled();
         QueueResult[] results = this.results;
         while (results != null && idx < results.length && hasCapacity()) {
@@ -261,11 +262,19 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
                     BugLog.log("mq pull block miss after collected records: queue={}, fromSeq={}, queueCount={}",
                             r.queueId, r.fromSeq, r.queueCount);
                 } else {
+                    if (longPolling && count == 0 && scannedNextSeqs == null) {
+                        scannedNextSeqs = new long[queueIds.length];
+                        LongObjMap<MqIdxQueue> queues = mq.manager.queues;
+                        for (int i = 0; i < queueIds.length; i++) {
+                            MqIdxQueue queue = queues.get(queueIds[i]);
+                            scannedNextSeqs[i] = queue == null ? 0 : queue.nextSeq;
+                        }
+                    }
                     r.start = count;
                     int next = idx + 1;
                     // a false return means stale state mid-collect: the whole scan restarts
                     return Fiber.call(new MqIdxReader(this, mq.manager.queues.get(r.queueId), r),
-                            v -> Boolean.TRUE.equals(v) ? readQueue(next, changeVersion)
+                            v -> Boolean.TRUE.equals(v) ? readQueue(next)
                                     : Fiber.resume(null, this::scan));
                 }
             }
@@ -288,7 +297,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         if (!longPolling || rest <= 0) {
             return prepareResponse();
         }
-        if (mq.changeVersion != changeVersion) {
+        if (scannedNextSeqs != null && subscribedQueueChanged()) {
             return Fiber.resume(null, this::scan);
         }
         watch();
@@ -297,6 +306,18 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
             throw new RaftTimeoutException("mq pull timeout");
         }
         return changed.await(rest, TimeUnit.NANOSECONDS, mq.groupConfig.fiberGroup.shouldStopCondition, this::scan);
+    }
+
+    private boolean subscribedQueueChanged() {
+        LongObjMap<MqIdxQueue> queues = mq.manager.queues;
+        for (int i = 0; i < queueIds.length; i++) {
+            MqIdxQueue queue = queues.get(queueIds[i]);
+            long nextSeq = queue == null ? 0 : queue.nextSeq;
+            if (nextSeq != scannedNextSeqs[i]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // soft byte limit: any single item may cross it; collection stops once the total reaches it
@@ -473,7 +494,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         if (changed != null) {
             return;
         }
-        // registration stays until doFinally; signals missed before it are covered by the changeVersion re-check
+        // registration stays until doFinally; signals missed before it are covered by the nextSeq re-check
         changed = mq.groupConfig.fiberGroup.newCondition("mqPull");
         for (long id : queueIds) {
             HashSet<MqPullFrame> set = mq.waitingPulls.get(id);

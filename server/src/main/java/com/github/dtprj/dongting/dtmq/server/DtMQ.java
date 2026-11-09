@@ -65,7 +65,6 @@ public class DtMQ implements StateMachine {
     RaftLog raftLog;
     final HashSet<MqPullFrame> activePulls = new HashSet<>();
     final LongObjMap<HashSet<MqPullFrame>> waitingPulls = new LongObjMap<>();
-    long changeVersion;
 
     boolean installing;
 
@@ -112,7 +111,6 @@ public class DtMQ implements StateMachine {
     }
 
     private void afterAppend(long queueId) {
-        changeVersion++;
         HashSet<MqPullFrame> pulls = waitingPulls.get(queueId);
         if (pulls != null) {
             for (MqPullFrame pull : pulls) {
