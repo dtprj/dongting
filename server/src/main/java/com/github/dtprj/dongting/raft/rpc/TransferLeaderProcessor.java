@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -87,40 +86,39 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
                                 "groupId={}, remote={}",
                         raftStatus.raftClusterId, req.raftClusterId, req.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-                resp.msg = "raft cluster id not match";
-                reqInfo.reqContext.writeRespInBizThreads(resp);
+                reqInfo.reqContext.writeRespInBizThreads(
+                        new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "raft cluster id not match"));
                 return Fiber.frameReturn();
             }
             if (raftStatus.getRole() != RaftRole.follower) {
                 log.error("not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
-                throw new RaftException("not follower");
+                return fail("not follower");
             }
             if (req.newLeaderId != gc.serverConfig.nodeId) {
                 log.error("new leader id mismatch, groupId={}, newLeaderId={}, localId={}",
                         req.groupId, req.newLeaderId, gc.serverConfig.nodeId);
-                throw new RaftException("new leader id mismatch");
+                return fail("new leader id mismatch");
             }
             if (!gc.memberManager.isValidCandidate(req.oldLeaderId) || !gc.memberManager.isValidCandidate(req.newLeaderId)) {
                 log.error("old leader or new leader is not valid candidate, groupId={}, old={}, new={}", req.groupId, req.oldLeaderId, req.newLeaderId);
-                throw new RaftException("old leader or new leader is not valid candidate");
+                return fail("old leader or new leader is not valid candidate");
             }
 
             if (raftStatus.currentTerm != req.term) {
                 log.error("term check fail, groupId={}, reqTerm={}, localTerm={}",
                         req.groupId, req.term, raftStatus.currentTerm);
-                throw new RaftException("term check fail");
+                return fail("term check fail");
             }
             if (raftStatus.lastLogIndex != req.logIndex) {
                 log.error("logIndex check fail, groupId={}, reqIndex={}, lastIndex={}", req.groupId,
                         req.logIndex, raftStatus.lastLogIndex);
-                throw new RaftException("logIndex check fail");
+                return fail("logIndex check fail");
             }
             if (req.logIndex != (gc.groupConfig.syncForce ? raftStatus.lastForceLogIndex : raftStatus.lastWriteLogIndex)) {
                 log.error("persist index check fail, groupId={}, reqIndex={}, sync={}, lastForce={}, lastWrite={}",
                         req.groupId, req.logIndex, gc.groupConfig.syncForce,
                         raftStatus.lastForceLogIndex, raftStatus.lastWriteLogIndex);
-                throw new RaftException("persist index check fail");
+                return fail("persist index check fail");
             }
             raftStatus.commitIndex = req.logIndex;
             gc.applyManager.wakeupApply();
@@ -133,7 +131,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             if (raftStatus.currentTerm != req.term || raftStatus.getRole() != RaftRole.follower) {
                 log.error("term or role changed during wait apply, groupId={}, reqTerm={}, currentTerm={}, role={}",
                         req.groupId, req.term, raftStatus.currentTerm, raftStatus.getRole());
-                throw new RaftException("term or role changed during wait apply");
+                return fail("term or role changed during wait apply");
             }
             RaftUtil.changeToLeader(raftStatus, true);
             boolean persistVote = raftStatus.votedFor != gc.serverConfig.nodeId;
@@ -170,9 +168,14 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
             if (raftStatus.currentTerm != req.term || raftStatus.getRole() != RaftRole.leader) {
                 log.error("term or role changed during wait. groupId={}, reqTerm={}, currentTerm={}, role={}",
                         req.groupId, req.term, raftStatus.currentTerm, raftStatus.getRole());
-                throw new RaftException("term or role changed during wait");
+                return fail("term or role changed during wait");
             }
             reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
+            return Fiber.frameReturn();
+        }
+
+        private FrameCallResult fail(String msg) {
+            reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, msg));
             return Fiber.frameReturn();
         }
     }

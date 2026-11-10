@@ -28,6 +28,17 @@ public class EmptyBodyRespPacket extends RetryableWritePacket {
         this.respCode = respCode;
     }
 
+    public EmptyBodyRespPacket(int respCode, String msg) {
+        this.respCode = respCode;
+        this.msg = msg;
+    }
+
+    public EmptyBodyRespPacket(int respCode, Throwable ex) {
+        this.respCode = respCode;
+        String msg = ex.getMessage();
+        this.msg = msg == null ? ex.toString() : msg;
+    }
+
     @Override
     protected int calcActualBodySize() {
         return 0;

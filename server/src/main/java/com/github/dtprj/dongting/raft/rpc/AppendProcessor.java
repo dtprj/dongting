@@ -225,9 +225,8 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                 log.error("raft cluster id not match, ignore {} request. localId={}, reqId={}, groupId={}, remote={}",
                         appendType, raftStatus.raftClusterId, reqRaftClusterId, raftStatus.groupId,
                         reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-                resp.msg = "raft cluster id not match";
-                reqInfo.reqContext.writeRespInBizThreads(resp);
+                reqInfo.reqContext.writeRespInBizThreads(
+                        new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "raft cluster id not match"));
                 return Fiber.frameReturn();
             }
             if (reqRaftClusterId != 0) {

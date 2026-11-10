@@ -88,9 +88,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                                     "remoteId={}, groupId={}, remote={}",
                             raftStatus.raftClusterId, voteReq.raftClusterId, voteReq.candidateId, voteReq.groupId,
                             reqInfo.reqContext.getDtChannel().getRemoteAddr());
-                    EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-                    resp.msg = "raft cluster id not match";
-                    reqInfo.reqContext.writeRespInBizThreads(resp);
+                    reqInfo.reqContext.writeRespInBizThreads(
+                            new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "raft cluster id not match"));
                     return Fiber.frameReturn();
                 }
                 if (voteReq.raftClusterId != 0) {

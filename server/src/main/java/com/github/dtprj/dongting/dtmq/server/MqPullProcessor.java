@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.NetCodeException;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
@@ -83,7 +83,9 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
                     pull = mq.pull(req.queueIds, req.fromSeqs, req.limit, req.bytesLimit,
                             req.waitMillis, reqInfo.reqContext.getTimeout(), reqInfo.reqContext.getDtChannel());
                 } catch (IllegalArgumentException e) {
-                    throw new NetCodeException(CmdCodes.CLIENT_ERROR, e.getMessage(), null);
+                    reqInfo.reqContext.writeRespInBizThreads(
+                            new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, e.getMessage()));
+                    return Fiber.frameReturn();
                 }
             }
             RaftGroupImpl group = (RaftGroupImpl) reqInfo.raftGroup;
@@ -116,9 +118,11 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
         protected FrameCallResult handle(Throwable ex) {
             if (reqInfo.reqContext.getDtChannel().getChannel().isOpen()) {
                 if (ex instanceof RaftCancelException) {
-                    ex = new NetCodeException(CmdCodes.STOPPING, "mq pull cancelled", null);
+                    reqInfo.reqContext.writeRespInBizThreads(
+                            new EmptyBodyRespPacket(CmdCodes.STOPPING, "mq pull cancelled"));
+                } else {
+                    writeErrorResp(reqInfo, ex);
                 }
-                writeErrorResp(reqInfo, ex);
             }
             return Fiber.frameReturn();
         }

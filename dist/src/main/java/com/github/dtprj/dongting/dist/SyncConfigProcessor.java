@@ -91,15 +91,14 @@ public class SyncConfigProcessor extends ReqProcessor<Void> {
     public WritePacket process(ReadPacket<Void> packet, ReqContext reqContext) {
         boolean servicePort = RaftProcessor.requestServicePort(reqContext, server.getServerConfig());
         if (!RaftProcessor.checkPort(servicePort, false, true)) {
-            return RaftProcessor.createWrongPortRest(packet, reqContext);
+            return RaftProcessor.createWrongPortResp(packet, reqContext);
         }
         sequenceRunner.submit(reqContext.getTimeout().rest(TimeUnit.MILLISECONDS), e -> {
             EmptyBodyRespPacket p;
             if (e == null) {
                 p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             } else {
-                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                p.msg = e.toString();
+                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, e);
             }
             reqContext.writeRespInBizThreads(p);
         });

@@ -36,8 +36,7 @@ public final class MqServerUtil {
         if (sm instanceof DtMQ) {
             return (DtMQ) sm;
         }
-        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-        errorResp.msg = "type error: " + sm;
+        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "type error: " + sm);
         reqInfo.reqContext.writeRespInBizThreads(errorResp);
         return null;
     }

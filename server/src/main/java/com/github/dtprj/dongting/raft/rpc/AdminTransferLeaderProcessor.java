@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
@@ -48,7 +47,7 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
         if (req.oldLeaderId != raftServer.getServerConfig().nodeId) {
             log.error("old leader id mismatch, groupId={}, oldLeaderId={}, localId={}",
                     req.groupId, req.oldLeaderId, raftServer.getServerConfig().nodeId);
-            throw new RaftException("old leader id mismatch");
+            return new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, "old leader id mismatch");
         }
         CompletableFuture<Void> f = reqInfo.raftGroup.transferLeadership(req.newLeaderId,
                 reqInfo.reqContext.getTimeout());

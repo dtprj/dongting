@@ -465,11 +465,10 @@ class DtChannelImpl implements DtChannel, PbCallback<Object> {
         if (req.packetType == PacketType.TYPE_ONE_WAY) {
             return;
         }
-        EmptyBodyRespPacket resp = new EmptyBodyRespPacket(code);
+        EmptyBodyRespPacket resp = new EmptyBodyRespPacket(code, msg);
         resp.command = req.command;
         resp.packetType = PacketType.TYPE_RESP;
         resp.seq = req.seq;
-        resp.msg = msg;
         subQueue.enqueue(new PacketInfo(this, resp, timeout));
     }
 

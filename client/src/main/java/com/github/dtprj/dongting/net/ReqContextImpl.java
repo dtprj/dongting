@@ -94,14 +94,12 @@ class ReqContextImpl extends PacketInfo implements ReqContext, Runnable {
         } catch (NetCodeException e) {
             log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.command, e.getCode(), e.getMessage());
             if (req.packetType == PacketType.TYPE_REQ) {
-                resp = new EmptyBodyRespPacket(e.getCode());
-                resp.msg = e.toString();
+                resp = new EmptyBodyRespPacket(e.getCode(), e);
             }
         } catch (Throwable e) {
             log.warn("ReqProcessor.process fail, command={}", req.command, e);
             if (req.packetType == PacketType.TYPE_REQ) {
-                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.msg = e.toString();
+                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, e);
             }
         } finally {
             if (reqFlowControl) {

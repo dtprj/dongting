@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -55,17 +54,18 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
             }
             ArrayList<RaftReqData> messages = reqInfo.reqFrame.getBody().messages;
             if (messages == null || messages.isEmpty()) {
-                throw new NetCodeException(CmdCodes.CLIENT_ERROR, "no messages", null);
+                return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "no messages");
             }
             int size = messages.size();
             int maxBody = mq.serverConfig.maxBody;
             for (int i = 0; i < size; i++) {
                 RaftReqData data = messages.get(i);
                 if (data.bizKey <= 0) {
-                    throw new NetCodeException(CmdCodes.CLIENT_ERROR, "queueId must be positive", null);
+                    return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "queueId must be positive");
                 }
                 if (data.bodyLen > maxBody) {
-                    throw new NetCodeException(CmdCodes.CLIENT_ERROR, "message body exceeds maxBody: " + maxBody, null);
+                    return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
+                            "message body exceeds maxBody: " + maxBody);
                 }
             }
             SendBatch batch = new SendBatch(reqInfo, size);

@@ -188,7 +188,8 @@ final class KvReadProcessor extends RaftProcessor<KvReq> {
         boolean b = dtKV.dtkvExecutor.submitTaskInAnyThread(() -> leaseRead0(dtKV, reqInfo, req, startTime, dtKV.ts));
         if (!b) {
             perfCallback.fireTime(PerfConsts.DTKV_LEASE_READ, startTime);
-            writeErrorResp(reqInfo, new RaftException("dtkv executor is stopping"));
+            reqInfo.reqContext.writeRespInBizThreads(
+                    new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, "dtkv executor is stopping"));
         }
     }
 }

@@ -43,7 +43,7 @@ public class NodePingProcessor extends ReqProcessor<NodePing> {
         boolean servicePort = RaftProcessor.requestServicePort(reqContext, raftServerConfig);
         if (!RaftProcessor.checkPort(servicePort, false, true)) {
             packet.clean();
-            return RaftProcessor.createWrongPortRest(packet, reqContext);
+            return RaftProcessor.createWrongPortResp(packet, reqContext);
         }
         nodeManager.processNodePing(packet, reqContext);
         return null;

@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -77,10 +76,6 @@ final class KvProcessor extends RaftProcessor<KvReq> {
         ReadPacket<KvReq> frame = reqInfo.reqFrame;
         KvReq req = frame.getBody();
         try {
-            if (req == null) {
-                throw new NetCodeException(CmdCodes.CLIENT_ERROR, "no body", null);
-            }
-
             // use uuid initialized in handshake
             req.ownerUuid = reqInfo.reqContext.getDtChannel().getRemoteUuid();
 
@@ -133,9 +128,8 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     private void checkTtlAndSubmit(ReqInfo<KvReq> reqInfo, int bizType, KvReq req) {
         String errorMsg = KvImpl.checkTtl(req.ttlMillis, req.value, bizType == DtKV.BIZ_TYPE_TRY_LOCK);
         if (errorMsg != null) {
-            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
+            EmptyBodyRespPacket p = new EmptyBodyRespPacket(CmdCodes.SUCCESS, errorMsg);
             p.bizCode = KvCodes.INVALID_TTL;
-            p.msg = errorMsg;
             reqInfo.reqContext.writeRespInBizThreads(p);
         } else {
             submitWriteTask(reqInfo, bizType, req);
@@ -209,8 +203,7 @@ final class KvProcessor extends RaftProcessor<KvReq> {
                         return; // the response is sent, so here use return
                     }
                     default:
-                        resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                        resp.msg = "unknown command: " + reqInfo.reqFrame.command;
+                        throw new RaftException("unknown command: " + reqInfo.reqFrame.command);
                 }
                 reqInfo.reqContext.writeRespInBizThreads(resp);
             } finally {

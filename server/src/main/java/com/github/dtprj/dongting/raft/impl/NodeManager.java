@@ -434,8 +434,8 @@ public class NodeManager extends AbstractLifeCircle {
             NodePing reqPing = packet.getBody();
             WritePacket p;
             if (allNodesEx.get(reqPing.localNodeId) == null) {
-                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                p.msg = "node not found: " + reqPing.localNodeId;
+                p = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR,
+                        "node not found: " + reqPing.localNodeId);
             } else {
                 NodePing respPing = new NodePing(selfNodeId, reqPing.localNodeId, uuid);
                 p = new SimpleWritePacket(respPing);

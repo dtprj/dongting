@@ -81,8 +81,7 @@ public class KvServerUtil {
         if (sm instanceof DtKV) {
             return (DtKV) sm;
         }
-        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-        errorResp.msg = "type error: " + sm;
+        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "type error: " + sm);
         reqInfo.reqContext.writeRespInBizThreads(errorResp);
         return null;
     }

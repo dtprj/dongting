@@ -58,7 +58,7 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
         boolean servicePort = RaftProcessor.requestServicePort(reqContext, server.getServerConfig());
         if (!RaftProcessor.checkPort(servicePort, false, true)) {
             packet.clean();
-            return RaftProcessor.createWrongPortRest(packet, reqContext);
+            return RaftProcessor.createWrongPortResp(packet, reqContext);
         }
         int cmd = packet.command;
         switch (cmd) {
@@ -109,8 +109,7 @@ public class AdminGroupAndNodeProcessor extends ReqProcessor<Object> {
             if (ex == null) {
                 resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
             } else {
-                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                resp.msg = ex.toString();
+                resp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, ex);
             }
             reqContext.writeRespInBizThreads(resp);
         });

@@ -65,12 +65,10 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    public static WritePacket createWrongPortRest(ReadPacket<?> packet, ReqContext reqContext) {
-        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.COMMAND_NOT_SUPPORT);
-        errorResp.msg = "command not supported on this port";
+    public static WritePacket createWrongPortResp(ReadPacket<?> packet, ReqContext reqContext) {
         log.info("command not supported on this port: cmd={}, channel={}",
                 packet.command, reqContext.getDtChannel());
-        return errorResp;
+        return new EmptyBodyRespPacket(CmdCodes.COMMAND_NOT_SUPPORT, "command not supported on this port");
     }
 
     /**
@@ -79,59 +77,48 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
     @Override
     public final WritePacket process(ReadPacket<T> packet, ReqContext reqContext) {
         if (packet.getBody() == null) {
-            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            errorResp.msg = "request has no body";
             log.warn("request has no body: cmd={}, channel={}", packet.command, reqContext.getDtChannel());
-            return errorResp;
+            return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "request has no body");
         }
         boolean servicePort = requestServicePort(reqContext, raftServer.getServerConfig());
         if (!checkPort(servicePort, enableServicePort, enableReplicatePort)) {
             packet.clean();
-            return createWrongPortRest(packet, reqContext);
+            return createWrongPortResp(packet, reqContext);
         }
         if (servicePort) {
             if (!raftServer.isGroupReady()) {
                 packet.clean();
-                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.NOT_INIT);
-                wf.msg = "raft server not ready";
-                return wf;
+                return new EmptyBodyRespPacket(CmdCodes.NOT_INIT, "raft server not ready");
             }
             if (raftServer.getStatus() > AbstractLifeCircle.STATUS_RUNNING) {
                 packet.clean();
-                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.STOPPING);
-                wf.msg = "raft server shutdown";
-                return wf;
+                return new EmptyBodyRespPacket(CmdCodes.STOPPING, "raft server shutdown");
             }
         }
         int groupId = getGroupId(packet);
         if (groupId <= 0) {
             packet.clean();
-            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            errorResp.msg = "groupId must be positive";
-            return errorResp;
+            return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "groupId must be positive");
         }
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         if (g == null) {
             packet.clean();
-            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
-            errorResp.msg = "raft group not found: " + groupId;
-            log.error(errorResp.msg);
-            return errorResp;
+            log.error("raft group not found: {}", groupId);
+            return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND,
+                    "raft group not found: " + groupId);
         }
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         RaftShareStatus ss = g.groupComponents.raftStatus.getShareStatus();
         if (ss.fatalError && !isQueryStatus(packet.command)) {
             packet.clean();
-            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_ERROR);
-            wf.msg = "raft group in error status: " + groupId;
-            return wf;
+            return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_ERROR,
+                    "raft group in error status: " + groupId);
         }
         if (!ss.initFinished && !isQueryStatus(packet.command)) {
             // raft query status can be processed when not initialized
             packet.clean();
-            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
-            wf.msg = "raft group not initialized: " + groupId;
-            return wf;
+            return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT,
+                    "raft group not initialized: " + groupId);
         }
 
         if (ss.shouldStop && !isQueryStatus(packet.command)) {
@@ -155,34 +142,33 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             log.warn("raft operation timeout: command={}, seq={}", reqFrame.command, reqFrame.seq);
             return;
         }
-        EmptyBodyRespPacket errorResp;
+        int code;
+        byte[] extra = null;
         if (root instanceof FlowControlException) {
-            errorResp = new EmptyBodyRespPacket(CmdCodes.FLOW_CONTROL);
+            code = CmdCodes.FLOW_CONTROL;
         } else if (root instanceof NotLeaderException) {
-            errorResp = new EmptyBodyRespPacket(CmdCodes.NOT_RAFT_LEADER);
+            code = CmdCodes.NOT_RAFT_LEADER;
             int leaderId = ((NotLeaderException) root).getCurrentLeaderId();
             if (leaderId > 0) {
-                errorResp.extra = String.valueOf(leaderId).getBytes(StandardCharsets.UTF_8);
+                extra = String.valueOf(leaderId).getBytes(StandardCharsets.UTF_8);
             }
             log.warn("not leader, current leader is {}", leaderId);
-        } else if (root.getMessage().contains("the fiber group is not running")) {
-            errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
+        } else if (root.getMessage() != null && root.getMessage().contains("the fiber group is not running")) {
+            code = CmdCodes.RAFT_GROUP_STOPPED;
         } else if (root instanceof NetCodeException) {
             NetCodeException nce = (NetCodeException) root;
-            errorResp = new EmptyBodyRespPacket(nce.getCode());
-            errorResp.msg = nce.getMessage();
-            errorResp.extra = nce.getExtra();
+            code = nce.getCode();
+            extra = nce.getExtra();
         } else {
-            errorResp = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
+            code = CmdCodes.SYS_ERROR;
             log.warn("raft processor error", ex);
         }
-        errorResp.msg = root.toString();
+        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(code, root);
+        errorResp.extra = extra;
         reqInfo.reqContext.writeRespInBizThreads(errorResp);
     }
 
     protected EmptyBodyRespPacket createStoppedResp(int groupId) {
-        EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
-        wf.msg = "raft group is stopped: " + groupId;
-        return wf;
+        return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED, "raft group is stopped: " + groupId);
     }
 }

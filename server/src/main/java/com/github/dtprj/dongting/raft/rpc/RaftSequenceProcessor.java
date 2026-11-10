@@ -119,10 +119,8 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             if (current != null) {
-                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                wf.msg = ex.toString();
                 log.error("uncaught exception in {}.", getClass().getSimpleName(), ex);
-                current.reqContext.writeRespInBizThreads(wf);
+                current.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, ex));
             }
             if (isGroupShouldStopPlain()) {
                 return cleanAndExit(null);
@@ -141,18 +139,15 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
         if (c == null) {
             // query status can reach here when group is not initialized
             reqInfo.reqFrame.clean();
-            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
-            wf.msg = "raft group not initialized: " + reqInfo.raftGroup.getGroupId();
-            return wf;
+            return new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT,
+                    "raft group not initialized: " + reqInfo.raftGroup.getGroupId());
         } else {
             try {
                 preProcess(rix);
             } catch (Throwable e) {
                 log.error("preProcess fail, command={}", reqInfo.reqFrame.command, e);
                 reqInfo.reqFrame.clean();
-                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.SYS_ERROR);
-                wf.msg = "preProcess fail: " + e;
-                return wf;
+                return new EmptyBodyRespPacket(CmdCodes.SYS_ERROR, "preProcess fail: " + e);
             }
             if (!c.fireOffer(reqInfo)) {
                 processAfterStop(reqInfo);
