@@ -104,10 +104,10 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
             }
         }
         int groupId = getGroupId(packet);
-        if (groupId == 0) {
+        if (groupId <= 0) {
             packet.clean();
             EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            errorResp.msg = "groupId not set in body";
+            errorResp.msg = "groupId must be positive";
             return errorResp;
         }
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);

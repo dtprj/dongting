@@ -43,12 +43,7 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
 
     @Override
     protected int getGroupId(ReadPacket<MqSendReqCallback> packet) {
-        int groupId = packet.getBody().groupId;
-        if (groupId <= 0) {
-            packet.clean();
-            throw new NetCodeException(CmdCodes.CLIENT_ERROR, "groupId must be positive", null);
-        }
-        return groupId;
+        return packet.getBody().groupId;
     }
 
     @Override
