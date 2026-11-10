@@ -163,9 +163,13 @@ final class LogReadFrame extends FiberFrame<Boolean> {
     }
 
     private ByteBuffer slice(ReadRange range) {
-        ByteBuffer view = dest.duplicate();
-        view.limit(range.offset + range.length).position(range.offset);
-        return view.slice();
+        int oldPos = dest.position();
+        int oldLimit = dest.limit();
+        dest.limit(range.offset + range.length).position(range.offset);
+        ByteBuffer view = dest.slice();
+        // restore limit before position, or position() may throw
+        dest.limit(oldLimit).position(oldPos);
+        return view;
     }
 
     @Override
@@ -176,7 +180,7 @@ final class LogReadFrame extends FiberFrame<Boolean> {
     private FrameCallResult awaitPending(Pair<Void, Throwable> unused) {
         if (pending != null && !pending.isDone()) {
             // An interrupted await must not release readers or return the caller's buffer early.
-            return Fiber.call(new HandlerFrame<>(new SimpleFrame<Void>("waitLogRead",
+            return Fiber.call(new HandlerFrame<>(new SimpleFrame<>("waitLogRead",
                     f -> pending.await(f::justReturn))), this::awaitPending);
         }
         for (int i = 0; i < readerCount; i++) {
