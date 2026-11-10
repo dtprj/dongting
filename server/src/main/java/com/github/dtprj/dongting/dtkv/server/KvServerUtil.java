@@ -78,14 +78,13 @@ public class KvServerUtil {
 
     static DtKV getStateMachine(ReqInfo<?> reqInfo) {
         StateMachine sm = reqInfo.raftGroup.getStateMachine();
-        try {
+        if (sm instanceof DtKV) {
             return (DtKV) sm;
-        } catch (ClassCastException e) {
-            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            errorResp.msg = "type error: " + sm;
-            reqInfo.reqContext.writeRespInBizThreads(errorResp);
-            return null;
         }
+        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+        errorResp.msg = "type error: " + sm;
+        reqInfo.reqContext.writeRespInBizThreads(errorResp);
+        return null;
     }
 
     private static final byte[] HEX = new byte[]{

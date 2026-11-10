@@ -49,10 +49,10 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
     @Override
     protected WritePacket doProcess(ReqInfo<MqSendReqCallback> reqInfo) {
         try {
-            if (!(reqInfo.raftGroup.getStateMachine() instanceof DtMQ)) {
-                throw new NetCodeException(CmdCodes.CLIENT_ERROR, "not a dtmq group", null);
+            DtMQ mq = MqServerUtil.getStateMachine(reqInfo);
+            if (mq == null) {
+                return null;
             }
-            DtMQ mq = (DtMQ) reqInfo.raftGroup.getStateMachine();
             ArrayList<RaftReqData> messages = reqInfo.reqFrame.getBody().messages;
             if (messages == null || messages.isEmpty()) {
                 throw new NetCodeException(CmdCodes.CLIENT_ERROR, "no messages", null);

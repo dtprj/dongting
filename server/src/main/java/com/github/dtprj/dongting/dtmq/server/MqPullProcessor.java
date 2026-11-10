@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
@@ -32,7 +31,6 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
-import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 final class MqPullProcessor extends RaftProcessor<MqPullReq> {
     MqPullProcessor(RaftServer raftServer) {
@@ -51,15 +49,13 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
 
     @Override
     protected WritePacket doProcess(ReqInfo<MqPullReq> reqInfo) {
-        StateMachine sm = reqInfo.raftGroup.getStateMachine();
-        if (!(sm instanceof DtMQ)) {
+        DtMQ mq = MqServerUtil.getStateMachine(reqInfo);
+        if (mq == null) {
             reqInfo.reqFrame.clean();
-            EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
-            resp.msg = "not a dtmq group";
-            return resp;
+            return null;
         }
         RaftGroupImpl group = (RaftGroupImpl) reqInfo.raftGroup;
-        if (!group.fiberGroup.fireFiber("mqPull", new PullFrame(reqInfo, (DtMQ) sm))) {
+        if (!group.fiberGroup.fireFiber("mqPull", new PullFrame(reqInfo, mq))) {
             reqInfo.reqFrame.clean();
             return createStoppedResp(group.groupId);
         }

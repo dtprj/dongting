@@ -15,8 +15,12 @@
  */
 package com.github.dtprj.dongting.dtmq.server;
 
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 public final class MqServerUtil {
     private MqServerUtil() {
@@ -25,5 +29,16 @@ public final class MqServerUtil {
     public static void initMqServer(RaftServer server) {
         server.getNioServer().register(Commands.DTMQ_SEND, new MqSendProcessor(server), null);
         server.getNioServer().register(Commands.DTMQ_PULL, new MqPullProcessor(server), null);
+    }
+
+    static DtMQ getStateMachine(ReqInfo<?> reqInfo) {
+        StateMachine sm = reqInfo.raftGroup.getStateMachine();
+        if (sm instanceof DtMQ) {
+            return (DtMQ) sm;
+        }
+        EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
+        errorResp.msg = "type error: " + sm;
+        reqInfo.reqContext.writeRespInBizThreads(errorResp);
+        return null;
     }
 }
