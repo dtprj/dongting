@@ -539,6 +539,14 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
+            public Object getResult(DecodeContext context) {
+                throw new CodecException("test fail");
+            }
+        };
+        testCallbackEx(supplier, 1, 0, 1);
+
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
+            @Override
             public void end(boolean success, Throwable ex) {
                 throw new ArrayIndexOutOfBoundsException();
             }

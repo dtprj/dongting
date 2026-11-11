@@ -144,11 +144,15 @@ public class PbParser {
         if (this.status > STATUS_END_SKIP) {
             try {
                 if (success) {
+                    Object result;
                     try {
-                        return callback.getResult(context);
-                    } finally {
-                        callback.end(true, null);
+                        result = callback.getResult(context);
+                    } catch (RuntimeException | Error e) {
+                        callback.end(false, e);
+                        throw e;
                     }
+                    callback.end(true, null);
+                    return result;
                 } else {
                     callback.end(false, ex);
                     return null;
