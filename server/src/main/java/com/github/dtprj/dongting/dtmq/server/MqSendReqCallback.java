@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.dtmq.codec.MqSendReq;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -41,15 +40,6 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
     int groupId;
     ArrayList<RaftReqData> messages;
     private int declaredSize;
-    private boolean returned;
-
-    @Override
-    public void begin(int len) {
-        groupId = 0;
-        messages = null;
-        declaredSize = -1;
-        returned = false;
-    }
 
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
@@ -58,9 +48,6 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
                 groupId = (int) value;
                 break;
             case MqSendReq.IDX_MESSAGES_SIZE:
-                if (value < 0 || value > Integer.MAX_VALUE) {
-                    throw new PbException("invalid messages_size: " + value);
-                }
                 declaredSize = (int) value;
                 break;
         }
@@ -78,19 +65,13 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
 
     @Override
     public MqSendReqCallback getResult(DecodeContext context) {
-        int size = messages == null ? 0 : messages.size();
-        if (declaredSize >= 0 && declaredSize != size) {
-            throw new PbException("messages_size mismatch");
-        }
-        // getResult() throwing must leave returned false, so that end() releases the decoded items
-        returned = true;
         return this;
     }
 
     @Override
     public void end(boolean success, Throwable ex) {
         messageCallback.releaseBuffer();
-        if (!returned) {
+        if (!success) {
             clean();
         }
     }
@@ -186,7 +167,7 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
                     int oldHeaderLen = bakedHeader == null ? 0 : bakedHeader.length;
                     // the body is delimited by the old buffer's limit, its crc included
                     ByteBuffer src = buffer.getBuffer();
-                    src.position(LogHeader.ITEM_HEADER_SIZE + (oldHeaderLen == 0 ? 0 : oldHeaderLen + 4));
+                    src.position(LogHeader.computeTotalLen(oldHeaderLen, 0));
                     dest.put(src);
                 }
                 dest.flip();
@@ -208,14 +189,9 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
 
         private RefBuffer borrowItem(DecodeContext context) {
             int headerLen = msgHeader == null ? 0 : msgHeader.length;
-            long size = (long) LogHeader.ITEM_HEADER_SIZE
-                    + (headerLen == 0 ? 0 : headerLen + 4L)
-                    + (bodyLen == 0 ? 0 : bodyLen + 4L);
-            if (size > Integer.MAX_VALUE) {
-                throw new PbException("message too large: " + size);
-            }
+            int size = LogHeader.computeTotalLen(headerLen, bodyLen);
             return size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
-                    ? context.buffers.borrowDirect((int) size) : context.buffers.borrow((int) size, false, true, 512);
+                    ? context.buffers.borrowDirect(size) : context.buffers.borrow(size, false, true, 512);
         }
 
         private boolean sameHeader(byte[] a, byte[] b) {

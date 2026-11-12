@@ -69,7 +69,7 @@ class MqSendProcessorTest extends ServerTestBase {
     @Override
     protected StateMachine createStateMachine(RaftGroupConfigEx config) {
         MqServerConfig mqConfig = new MqServerConfig();
-        mqConfig.maxBody = MAX_BODY;
+        mqConfig.maxBodySize = MAX_BODY;
         return new DtMQ(config, mqConfig);
     }
 

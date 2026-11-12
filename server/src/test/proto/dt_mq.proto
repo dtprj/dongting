@@ -19,7 +19,7 @@ option java_package = "com.github.dtprj.dongting.dtmq.proto";
 message MqMessage {
   fixed64 queue_id = 1; // 1-based; 0 is reserved
   bytes msg_header = 2; // opaque bytes, not interpreted by the state machine
-  bytes msg_body = 3; // maxBody applies to each message body, excluding the header
+  bytes msg_body = 3; // maxBodySize applies to each message body, excluding the header
 }
 
 message MqSendReq {

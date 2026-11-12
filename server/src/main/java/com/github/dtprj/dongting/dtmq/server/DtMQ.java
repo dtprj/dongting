@@ -27,6 +27,8 @@ import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.net.NioConfig;
+import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -71,7 +73,8 @@ public class DtMQ implements StateMachine {
     private RaftGroup raftGroup;
 
     public DtMQ(RaftGroupConfigEx groupConfig, MqServerConfig serverConfig) {
-        DtUtil.checkPositive(serverConfig.maxBody, "maxBody");
+        DtUtil.checkPositive(serverConfig.maxHeaderSize, "maxHeaderSize");
+        DtUtil.checkPositive(serverConfig.maxBodySize, "maxBodySize");
         DtUtil.checkPositive(serverConfig.maxPullLimit, "maxPullLimit");
         DtUtil.checkPositive(serverConfig.maxPullBytesLimit, "maxPullBytesLimit");
         this.groupConfig = groupConfig;
@@ -86,6 +89,21 @@ public class DtMQ implements StateMachine {
     public void setRaftGroup(RaftGroup raftGroup) {
         this.raftGroup = raftGroup;
         this.raftLog = ((RaftGroupImpl) raftGroup).groupComponents.raftLog;
+    }
+
+    @Override
+    public void checkNioConfig(NioConfig nioConfig) {
+        long maxItem = (long) serverConfig.maxHeaderSize + serverConfig.maxBodySize;
+        long max = nioConfig.maxBodySize - NioNet.SIZE_DELTA;
+        if (maxItem > max) {
+            throw new IllegalArgumentException("maxHeaderSize plus maxBodySize is too large: "
+                    + maxItem + ", group=" + groupConfig.groupId);
+        }
+        long total = maxItem + serverConfig.maxPullBytesLimit; // soft limit
+        if (total > max) {
+            throw new IllegalArgumentException("maxPullBytesLimit is too large: total=" + total
+                    + ", group=" + groupConfig.groupId);
+        }
     }
 
     @Override

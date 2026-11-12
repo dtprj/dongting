@@ -373,7 +373,7 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         int bytes = this.bytes;
         QueueResult[] results = this.results;
         int headerSize = MqPullRespPacket.headerSize(queueIds, fromSeqs, results, bytes);
-        int bodySize = Math.addExact(headerSize, bytes);
+        int bodySize = headerSize + bytes;
         int[] msgSizes = this.msgSizes;
         RefBuffer[] cached = this.cached;
         // zero-copy bytes are excluded from the borrowed response buffer size

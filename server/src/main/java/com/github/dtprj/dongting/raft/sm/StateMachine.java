@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.net.DtChannel;
+import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
@@ -24,7 +25,8 @@ import java.nio.ByteBuffer;
 
 /**
  * All methods are called in raft thread except codec callbacks (raft or io thread), setRaftGroup
- * (caller thread, before group start), and onChannelDisconnected (io thread, may be called concurrently).
+ * and checkNioConfig (caller thread, before group start), and onChannelDisconnected (io thread,
+ * may be called concurrently).
  *
  * @author huangli
  */
@@ -59,6 +61,9 @@ public interface StateMachine extends RaftCodecFactory {
     FiberFuture<Snapshot> takeSnapshot(SnapshotInfo snapshotInfo);
 
     void setRaftGroup(RaftGroup raftGroup);
+
+    default void checkNioConfig(NioConfig nioConfig) {
+    }
 
     /**
      * this method is called in io thread when a client channel of the service port is disconnected,

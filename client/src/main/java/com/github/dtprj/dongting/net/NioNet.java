@@ -43,6 +43,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
+    public static final int SIZE_DELTA = 128 * 1024;
     private final NioConfig config;
     final NioStatus nioStatus;
     ExecutorService bizExecutor;
@@ -59,7 +60,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         this.nioStatus = VersionFactory.getInstance().newNioStatus();
         this.perfCallback = config.perfCallback;
         this.server = config instanceof NioServerConfig;
-        if (config.maxPacketSize < config.maxBodySize + 128 * 1024) {
+        if (config.maxPacketSize < config.maxBodySize + SIZE_DELTA) {
             throw new IllegalArgumentException("maxPacketSize should greater than maxBodySize plus 128KB.");
         }
     }

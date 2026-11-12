@@ -32,12 +32,14 @@ import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
+import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.perf.DefaultRpcPerf;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
+import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.RaftServerEventPush;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
@@ -47,7 +49,6 @@ import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftShareStatus;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -230,8 +231,8 @@ public class RaftServer extends AbstractLifeCircle implements ChannelListener {
         nc.maxOutBytes = 0;
         nc.maxInRequests = 0;
         nc.maxInBytes = 0;
-        nc.maxBodySize = Integer.MAX_VALUE;
-        nc.maxPacketSize = Integer.MAX_VALUE;
+        nc.maxBodySize = 16 * 1024 * 1024;
+        nc.maxPacketSize = nc.maxBodySize + NioNet.SIZE_DELTA;
     }
 
     protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {
@@ -334,12 +335,26 @@ public class RaftServer extends AbstractLifeCircle implements ChannelListener {
         // register before the group is published, so any stop request can start the callback
         fiberGroup.shutdownCallback = new ShutdownFiberFrame(g);
         stateMachine.setRaftGroup(g);
+        stateMachine.checkNioConfig(nioServer.getConfig());
+        stateMachine.checkNioConfig(nioClient.getConfig());
         return g;
     }
 
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
                                                   FiberGroup fiberGroup) {
         RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
+        int maxLogItemSize = Math.min(nioServer.getConfig().maxBodySize,
+                nioClient.getConfig().maxBodySize) - NioNet.SIZE_DELTA;
+        if (rgc.singleReplicateLimit > maxLogItemSize) {
+            throw new IllegalArgumentException("singleReplicateLimit too large: "
+                    + rgc.singleReplicateLimit + ", group=" + rgc.groupId);
+        }
+        if (rgc.replicateSnapshotBufferSize > maxLogItemSize) {
+            throw new IllegalArgumentException("replicateSnapshotBufferSize too large: "
+                    + rgc.replicateSnapshotBufferSize + ", group=" + rgc.groupId);
+        }
+        rgcEx.maxLogItemSize = maxLogItemSize;
+
         rgcEx.ts = raftStatus.ts;
         rgcEx.raftStatus = raftStatus;
         rgcEx.fiberGroup = fiberGroup;

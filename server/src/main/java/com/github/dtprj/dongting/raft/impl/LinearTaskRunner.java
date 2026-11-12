@@ -27,6 +27,8 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.SimpleFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.RaftTimeoutException;
@@ -213,6 +215,10 @@ public class LinearTaskRunner {
             return new RaftTimeoutException("timeout " + rt.deadline.getTimeout(TimeUnit.MILLISECONDS) + "ms");
         }
         rt.deadline = null;
+        if (rt.reqData.totalLen > groupConfig.maxLogItemSize) {
+            return new NetCodeException(CmdCodes.CLIENT_ERROR, "log item too large: "
+                    + rt.reqData.totalLen + ", max=" + groupConfig.maxLogItemSize, null);
+        }
         if (rt.reqData.type == LogHeader.TYPE_NORMAL || rt.reqData.type == LogHeader.TYPE_LOG_READ) {
             if (raftStatus.tailCache.pendingCount >= groupConfig.maxPendingTasks) {
                 log.warn("reject task, pendingRequests={}, maxPendingRaftTasks={}",

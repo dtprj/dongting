@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.KvCodes;
 import com.github.dtprj.dongting.dtkv.KvReq;
 import com.github.dtprj.dongting.dtkv.KvResult;
@@ -38,6 +39,8 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
+import com.github.dtprj.dongting.net.NioConfig;
+import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -146,6 +149,16 @@ public class DtKV implements StateMachine {
         this.raftGroup = (RaftGroupImpl) raftGroup;
         watchManager.selfNodeId = DtUtil.checkPositive(
                 this.raftGroup.groupComponents.serverConfig.nodeId, "nodeId");
+    }
+
+    @Override
+    public void checkNioConfig(NioConfig nioConfig) {
+        // x2 for cas operation
+        long min = (long) KvClientConfig.MAX_VALUE_SIZE * 2 + KvClientConfig.MAX_KEY_SIZE;
+        if (nioConfig.maxBodySize < min + NioNet.SIZE_DELTA) {
+            throw new IllegalArgumentException("maxBodySize too small: " + nioConfig.maxBodySize
+                    + ", group=" + config.groupId);
+        }
     }
 
     @Override

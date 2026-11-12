@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtmq.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.dtmq.codec.MqPullReq;
 
 import java.nio.ByteBuffer;
@@ -31,8 +30,7 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
     private static final int MIN_CAPACITY = 16;
 
     private final QueueCallback queueCallback = new QueueCallback();
-    // -1 means the request doesn't declare queues_size
-    private int declaredSize = -1;
+    private int declaredSize;
     private int queueCount;
 
     @Override
@@ -42,9 +40,6 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
                 groupId = (int) value;
                 break;
             case MqPullReq.IDX_QUEUES_SIZE:
-                if (value < 0 || value > Integer.MAX_VALUE) {
-                    throw new PbException("invalid queues_size: " + value);
-                }
                 declaredSize = (int) value;
                 break;
             case MqPullReq.IDX_LIMIT:
@@ -87,9 +82,6 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
 
     @Override
     public MqPullReq getResult(DecodeContext context) {
-        if (declaredSize >= 0 && declaredSize != queueCount) {
-            throw new PbException("queues_size mismatch");
-        }
         if (queueIds == null) {
             queueIds = fromSeqs = new long[0];
         } else if (queueIds.length != queueCount) {

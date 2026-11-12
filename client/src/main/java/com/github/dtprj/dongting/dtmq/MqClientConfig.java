@@ -16,5 +16,7 @@
 package com.github.dtprj.dongting.dtmq;
 
 public class MqClientConfig {
-    public int maxBody = 2_000_000;
+    // per-message limits, excluding the raft log item header
+    public int maxHeaderSize = 64 * 1024;
+    public int maxBodySize = 2_000_000;
 }

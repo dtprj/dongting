@@ -54,7 +54,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     private final ResultCallback resultCallback = new ResultCallback();
 
-    private int declaredResultsSize = -1;
+    private int declaredResultsSize;
     private ArrayList<MqPullRespDetail> resultList;
     private ArrayList<DtMsg> recordList;
     // current result group and number of records already decoded in it
@@ -80,9 +80,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_RESULTS_SIZE) {
-            if (value < 0 || value > Integer.MAX_VALUE) {
-                throw new PbException("invalid results_size: " + value);
-            }
             declaredResultsSize = (int) value;
         }
     }
@@ -111,9 +108,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public MqPullResp getResult(DecodeContext context) {
         int size = resultList == null ? 0 : resultList.size();
-        if (declaredResultsSize >= 0 && declaredResultsSize != size) {
-            throw new PbException("results_size mismatch: " + declaredResultsSize + ", " + size);
-        }
         if (resultList != null) {
             while (resultIndex < size) {
                 if (seqOffset < resultList.get(resultIndex).count) {

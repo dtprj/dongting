@@ -30,6 +30,8 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     public ExecutorService blockIoExecutor;
     public FiberGroup fiberGroup;
     public RaftServer raftServer;
+    // max totalLen of a single raft log item, derived from the nio max body size
+    public int maxLogItemSize = Integer.MAX_VALUE;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);

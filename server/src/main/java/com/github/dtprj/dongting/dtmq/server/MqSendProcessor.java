@@ -57,15 +57,20 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
                 return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "no messages");
             }
             int size = messages.size();
-            int maxBody = mq.serverConfig.maxBody;
+            int maxHeaderSize = mq.serverConfig.maxHeaderSize;
+            int maxBodySize = mq.serverConfig.maxBodySize;
             for (int i = 0; i < size; i++) {
                 RaftReqData data = messages.get(i);
                 if (data.bizKey <= 0) {
                     return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "queueId must be positive");
                 }
-                if (data.bodyLen > maxBody) {
+                if (data.bizHeaderLen > maxHeaderSize) {
                     return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
-                            "message body exceeds maxBody: " + maxBody);
+                            "message header exceeds maxHeaderSize: " + maxHeaderSize);
+                }
+                if (data.bodyLen > maxBodySize) {
+                    return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
+                            "message body exceeds maxBodySize: " + maxBodySize);
                 }
             }
             SendBatch batch = new SendBatch(reqInfo, size);
