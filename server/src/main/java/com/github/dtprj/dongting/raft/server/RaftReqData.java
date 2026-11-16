@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtBugException;
-import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.store.LogHeader;
 
@@ -30,7 +29,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-public class RaftReqData extends RefCount {
+public class RaftReqData {
 
     public final RefBuffer buffer;
     public final int totalLen;
@@ -46,7 +45,6 @@ public class RaftReqData extends RefCount {
     public long timestamp;
 
     public RaftReqData(RefBuffer fullBuffer) {
-        super(false, fullBuffer.isDummy());
         this.buffer = fullBuffer;
         this.totalLen = fullBuffer.actualSize();
     }
@@ -58,7 +56,6 @@ public class RaftReqData extends RefCount {
      *                   the fly (e.g. apply path) and the raw bytes are not needed.
      */
     public RaftReqData(LogHeader header, RefBuffer fullBuffer) {
-        super(false, fullBuffer == null || fullBuffer.isDummy());
         this.buffer = fullBuffer;
         this.totalLen = fullBuffer == null ? header.totalLen : fullBuffer.actualSize();
         this.bizHeaderLen = header.bizHeaderLen;
@@ -190,8 +187,13 @@ public class RaftReqData extends RefCount {
         }
     }
 
-    @Override
-    protected void doClean() {
+    public void retain() {
+        if (buffer != null) {
+            buffer.retain();
+        }
+    }
+
+    public void release() {
         if (buffer != null) {
             buffer.release();
         }

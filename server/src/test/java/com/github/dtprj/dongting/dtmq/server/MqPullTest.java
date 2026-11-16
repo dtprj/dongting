@@ -430,7 +430,6 @@ class MqPullTest extends BaseFiberTest {
             for (RaftTask task : new RaftTask[]{large, last}) {
                 task.reqData.release();
                 items.remove(task);
-                assertTrue(task.reqData.isReleased());
                 assertFalse(task.reqData.buffer.isReleased());
             }
         };
