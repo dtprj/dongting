@@ -22,6 +22,7 @@ public class DtMsg {
     // 1-based; 0 is reserved
     public long queueId;
     public byte[] header;
+    // not null or empty
     public byte[] body;
     public long timestamp;
     // 0-based, assigned by the server when received

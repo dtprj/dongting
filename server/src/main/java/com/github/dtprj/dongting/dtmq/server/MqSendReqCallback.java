@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -59,7 +60,10 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
             if (messages == null) {
                 messages = ParseUtil.createArrayList(declaredSize > 0 ? declaredSize : 4);
             }
-            ParseUtil.parseNested(context, buf, fieldLen, currentPos, messageCallback);
+            RaftReqData data = ParseUtil.parseNested(context, buf, fieldLen, currentPos, messageCallback);
+            if (data != null) {
+                messages.add(data);
+            }
         }
     }
 
@@ -88,137 +92,125 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
         }
     }
 
-    private final class MessageCallback implements PbCallback<Boolean> {
+    private static final class MessageCallback implements PbCallback<RaftReqData> {
         private final CRC32C crc = new CRC32C();
         private long queueId;
-        private byte[] msgHeader;
+        private int messageLen;
+        private int headerLen;
         private int bodyLen;
+        private int lastFieldIndex;
         private RefBuffer buffer;
-        // the header already written into buffer, null if the buffer holds the body only
-        private byte[] bakedHeader;
 
         @Override
         public void begin(int len) {
             queueId = 0;
-            msgHeader = null;
+            messageLen = len;
+            headerLen = 0;
             bodyLen = 0;
-            bakedHeader = null;
+            lastFieldIndex = 0;
         }
 
         @Override
         public void readFix64(DecodeContext context, int index, long value) {
             if (index == MqSendReq.IDX_MESSAGE_QUEUE_ID) {
+                checkOrder(index);
                 queueId = value;
             }
         }
 
         @Override
-        public void readBytes(DecodeContext context, int index, ByteBuffer src, int fieldLen, int currentPos) {
-            if (index == MqSendReq.IDX_MESSAGE_HEADER) {
-                msgHeader = ParseUtil.parseBytes(context, src, fieldLen, currentPos);
-            } else if (index == MqSendReq.IDX_MESSAGE_BODY) {
-                if (currentPos == 0) {
-                    startBody(context, fieldLen);
-                }
-                ByteBuffer dest = buffer.getBuffer();
-                int len = src.remaining();
-                while (src.hasRemaining()) {
-                    int chunk = Math.min(src.remaining(), RaftServerConfig.ENCODE_CHUNK_SIZE);
-                    int oldLimit = src.limit();
-                    int start = dest.position();
-                    src.limit(src.position() + chunk);
-                    dest.put(src);
-                    src.limit(oldLimit);
-                    RaftUtil.updateCrc(crc, dest, start, chunk);
-                }
-                if (currentPos + len == fieldLen) {
-                    if (fieldLen > 0) {
-                        dest.putInt((int) crc.getValue());
+        public void readVarNumber(DecodeContext context, int index, long value) {
+            switch (index) {
+                case MqSendReq.IDX_MESSAGE_HEADER_SIZE:
+                    checkOrder(index);
+                    headerLen = parseSize(value);
+                    break;
+                case MqSendReq.IDX_MESSAGE_BODY_SIZE:
+                    checkOrder(index);
+                    bodyLen = parseSize(value);
+                    if (bodyLen == 0) {
+                        throw new CodecException("message body must not be empty");
                     }
-                    dest.flip();
-                }
+                    allocate(context);
+                    break;
             }
         }
 
-        // the header usually arrives before the body, so it is written into the item buffer up front
-        private void startBody(DecodeContext context, int fieldLen) {
-            releaseBuffer();
-            bodyLen = fieldLen;
-            buffer = borrowItem(context);
-            bakedHeader = msgHeader;
-            ByteBuffer dest = buffer.getBuffer();
-            dest.position(LogHeader.ITEM_HEADER_SIZE);
-            if (bakedHeader != null && bakedHeader.length > 0) {
-                writeHeader(dest);
+        private int parseSize(long value) {
+            if (value < 0 || value > messageLen) {
+                throw new CodecException("invalid message content size: " + value);
             }
-            crc.reset();
+            return (int) value;
         }
 
-        // handles a header that arrives after the body (non-canonical encoding), or a repeated header
-        private void relayout(DecodeContext context) {
-            RefBuffer full = borrowItem(context);
-            try {
-                ByteBuffer dest = full.getBuffer();
-                dest.position(LogHeader.ITEM_HEADER_SIZE);
-                if (msgHeader != null && msgHeader.length > 0) {
-                    writeHeader(dest);
-                }
-                if (bodyLen > 0) {
-                    int oldHeaderLen = bakedHeader == null ? 0 : bakedHeader.length;
-                    // the body is delimited by the old buffer's limit, its crc included
-                    ByteBuffer src = buffer.getBuffer();
-                    src.position(LogHeader.computeTotalLen(oldHeaderLen, 0));
-                    dest.put(src);
-                }
-                dest.flip();
-            } catch (RuntimeException | Error e) {
-                full.release();
-                throw e;
+        private void checkOrder(int index) {
+            if (index <= lastFieldIndex) {
+                throw new CodecException("out of order or duplicate field: " + index);
             }
-            releaseBuffer();
-            buffer = full;
-            bakedHeader = msgHeader;
-        }
-
-        private void writeHeader(ByteBuffer dest) {
-            dest.put(msgHeader);
-            crc.reset();
-            crc.update(msgHeader, 0, msgHeader.length);
-            dest.putInt((int) crc.getValue());
-        }
-
-        private RefBuffer borrowItem(DecodeContext context) {
-            int headerLen = msgHeader == null ? 0 : msgHeader.length;
-            int size = LogHeader.computeTotalLen(headerLen, bodyLen);
-            return size >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
-                    ? context.buffers.borrowDirect(size) : context.buffers.borrow(size, false, true, 512);
-        }
-
-        private boolean sameHeader(byte[] a, byte[] b) {
-            int la = a == null ? 0 : a.length;
-            int lb = b == null ? 0 : b.length;
-            return la == lb && (la == 0 || a == b);
+            lastFieldIndex = index;
         }
 
         @Override
-        public Boolean getResult(DecodeContext context) {
-            if (!sameHeader(msgHeader, bakedHeader)) {
-                relayout(context);
+        public void readBytes(DecodeContext context, int index, ByteBuffer src, int fieldLen, int currentPos) {
+            if (index != MqSendReq.IDX_MESSAGE_HEADER && index != MqSendReq.IDX_MESSAGE_BODY) {
+                return;
             }
-            RaftReqData data;
+            if (currentPos == 0) {
+                checkOrder(index);
+                int declaredLen = index == MqSendReq.IDX_MESSAGE_HEADER ? headerLen : bodyLen;
+                if (fieldLen != declaredLen) {
+                    throw new CodecException("message content length mismatch: declared "
+                            + declaredLen + ", actual " + fieldLen);
+                }
+                if (buffer == null) {
+                    throw new CodecException("body_size field missing");
+                }
+                crc.reset();
+            }
+            ByteBuffer dest = buffer.getBuffer();
+            int len = src.remaining();
+            while (src.hasRemaining()) {
+                int chunk = Math.min(src.remaining(), RaftServerConfig.ENCODE_CHUNK_SIZE);
+                int oldLimit = src.limit();
+                int start = dest.position();
+                src.limit(src.position() + chunk);
+                dest.put(src);
+                src.limit(oldLimit);
+                RaftUtil.updateCrc(crc, dest, start, chunk);
+            }
+            if (currentPos + len == fieldLen && fieldLen > 0) {
+                dest.putInt((int) crc.getValue());
+            }
+        }
+
+        private void allocate(DecodeContext context) {
+            if ((long) headerLen + bodyLen > messageLen) {
+                throw new CodecException("declared content size exceeds message size");
+            }
+            int totalLen = LogHeader.computeTotalLen(headerLen, bodyLen);
+            buffer = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
+                    ? context.buffers.borrowDirect(totalLen) : context.buffers.borrow(totalLen, false, true, 512);
+            buffer.getBuffer().position(LogHeader.ITEM_HEADER_SIZE);
+        }
+
+        @Override
+        public RaftReqData getResult(DecodeContext context) {
             if (buffer == null) {
-                data = RaftReqData.build(LogHeader.TYPE_NORMAL, 0);
-            } else {
-                buffer.prepareForEncode();
-                data = new RaftReqData(buffer);
-                data.type = LogHeader.TYPE_NORMAL;
-                data.bodyLen = bodyLen;
-                data.bizHeaderLen = msgHeader == null ? 0 : msgHeader.length;
+                throw new CodecException("body_size field missing");
             }
+            ByteBuffer buf = buffer.getBuffer();
+            if (buf.position() != LogHeader.computeTotalLen(headerLen, bodyLen)) {
+                throw new CodecException("message content does not match declared sizes");
+            }
+            buf.flip();
+            buffer.prepareForEncode();
+            RaftReqData data = new RaftReqData(buffer);
+            data.type = LogHeader.TYPE_NORMAL;
+            data.bodyLen = bodyLen;
+            data.bizHeaderLen = headerLen;
             data.bizKey = queueId;
-            messages.add(data);
             buffer = null;
-            return Boolean.TRUE;
+            return data;
         }
 
         private void releaseBuffer() {
@@ -231,8 +223,6 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
         @Override
         public void end(boolean success, Throwable ex) {
             releaseBuffer();
-            msgHeader = null;
-            bakedHeader = null;
         }
     }
 }

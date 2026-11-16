@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPoolConfig;
 import com.github.dtprj.dongting.codec.BytesDecoderCallback;
+import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.DtTime;
@@ -92,8 +93,8 @@ class MqSendProcessorTest extends ServerTestBase {
             DtMq.MqMessage[] batch = {
                     message(22, HEADER, body(MAX_BODY)),
                     message(11, ByteString.EMPTY, body(MAX_BODY)),
-                    message(22, ByteString.EMPTY, ByteString.EMPTY),
-                    message(11, HEADER, ByteString.EMPTY)
+                    message(22, ByteString.EMPTY, body(1)),
+                    message(11, HEADER, body(2))
             };
             send(client, peer, request(batch).toBuilder().clearMessagesSize().build());
             assertPull(client, peer, 11, single, batch[1], batch[3]);
@@ -101,13 +102,13 @@ class MqSendProcessorTest extends ServerTestBase {
 
             DtMq.MqMessage valid = message(33, ByteString.EMPTY, body(16));
             assertSendError(client, peer, request(valid, message(44, HEADER, body(MAX_BODY + 1))));
-            assertSendError(client, peer, request(valid, message(0, HEADER, ByteString.EMPTY)));
+            assertSendError(client, peer, request(valid, message(0, HEADER, body(1))));
             assertSendError(client, peer, request());
             for (int invalidGroupId : new int[]{0, -1}) {
                 assertSendError(client, peer, request(valid).toBuilder().setGroupId(invalidGroupId).build());
             }
             // A successful write also waits for any incorrectly submitted prefix of the rejected batch.
-            DtMq.MqMessage marker = message(33, HEADER, ByteString.EMPTY);
+            DtMq.MqMessage marker = message(33, HEADER, body(1));
             send(client, peer, request(marker));
             assertPull(client, peer, 33, marker);
             assertPull(client, peer, 44);
@@ -149,8 +150,20 @@ class MqSendProcessorTest extends ServerTestBase {
         }
     }
 
+    @Test
+    void testDecodeRejectsEmptyBody() {
+        byte[] bytes = request(message(11, HEADER, ByteString.EMPTY)).toByteArray();
+        try (TrackingBuffers buffers = new TrackingBuffers()) {
+            DecodeContext context = new DecodeContext(buffers, null);
+            assertThrows(CodecException.class, () -> decode(context, bytes, bytes.length));
+            buffers.assertAllReleased();
+        }
+    }
+
     private static DtMq.MqMessage message(long queueId, ByteString header, ByteString body) {
-        return DtMq.MqMessage.newBuilder().setQueueId(queueId).setMsgHeader(header).setMsgBody(body).build();
+        return DtMq.MqMessage.newBuilder().setQueueId(queueId)
+                .setHeaderSize(header.size()).setBodySize(body.size())
+                .setMsgHeader(header).setMsgBody(body).build();
     }
 
     private static DtMq.MqSendReq request(DtMq.MqMessage... messages) {

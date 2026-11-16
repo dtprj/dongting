@@ -50,7 +50,7 @@ class MqPullRespTest {
         long ts3 = 0x3456789ABCDL;
         byte[] r1 = record(11, ts1, HEADER, new byte[]{1, 2, 3});
         byte[] r2 = record(11, ts2, new byte[0], new byte[]{4, 5});
-        byte[] r3 = record(22, ts3, new byte[]{6}, new byte[0]);
+        byte[] r3 = record(22, ts3, new byte[]{6}, new byte[]{7, 8});
         byte[] data = response(new DtMq.MqPullRespDetail[]{
                 detail(11, 100, 2, false),
                 detail(22, 7, 1, false),
@@ -67,27 +67,11 @@ class MqPullRespTest {
     }
 
     @Test
-    void testDecodeEmptyHeaderAndBody() {
-        byte[] r1 = record(11, 1, null, null);
-        byte[] r2 = record(11, 2, HEADER, null);
-        byte[] r3 = record(11, 3, null, new byte[]{1, 2, 3});
-        byte[] r4 = record(11, 4, new byte[]{4}, new byte[]{5});
+    void testRejectEmptyBody() {
+        byte[] record = record(11, 1, HEADER, null);
         byte[] data = response(new DtMq.MqPullRespDetail[]{
-                detail(11, 0, 4, false)}, r1, r2, r3, r4);
-
-        MqPullResp resp = decode(data, 2);
-        assertEquals(4, resp.records.size());
-        assertArrayEquals(new byte[0], resp.records.get(0).header);
-        assertArrayEquals(new byte[0], resp.records.get(0).body);
-        assertArrayEquals(HEADER, resp.records.get(1).header);
-        assertArrayEquals(new byte[0], resp.records.get(1).body);
-        assertArrayEquals(new byte[0], resp.records.get(2).header);
-        assertArrayEquals(new byte[]{1, 2, 3}, resp.records.get(2).body);
-        assertArrayEquals(new byte[]{4}, resp.records.get(3).header);
-        assertArrayEquals(new byte[]{5}, resp.records.get(3).body);
-        for (int i = 0; i < resp.records.size(); i++) {
-            assertEquals(i, resp.records.get(i).seq);
-        }
+                detail(11, 0, 1, false)}, record);
+        assertThrows(PbException.class, () -> decode(data, 2));
     }
 
     @Test
@@ -164,7 +148,7 @@ class MqPullRespTest {
         assertEquals(7, m2.seq);
         assertEquals(0x3456789ABCDL, m2.timestamp);
         assertArrayEquals(new byte[]{6}, m2.header);
-        assertArrayEquals(new byte[0], m2.body);
+        assertArrayEquals(new byte[]{7, 8}, m2.body);
     }
 
     private static MqPullResp decode(byte[] data, int chunkSize) {

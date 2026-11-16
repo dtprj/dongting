@@ -211,13 +211,13 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     }
 
     private void beginRecord(int totalLen, int bizHeaderLen, int bodyLen) {
-        if (totalLen <= 0 || totalLen > recordsFieldLen || bizHeaderLen < 0 || bodyLen < 0) {
+        if (totalLen <= 0 || totalLen > recordsFieldLen || bizHeaderLen < 0 || bodyLen <= 0) {
             throw new PbException("bad record header: totalLen=" + totalLen + ", recordsFieldLen="
                     + recordsFieldLen + ", bizHeaderLen=" + bizHeaderLen + ", bodyLen=" + bodyLen);
         }
         long fixedLen = (long) totalLen - 4
                 - (bizHeaderLen == 0 ? 0 : (long) bizHeaderLen + 4)
-                - (bodyLen == 0 ? 0 : (long) bodyLen + 4);
+                - bodyLen - 4;
         if (fixedLen < MIN_FIXED_HEADER_LEN) {
             throw new PbException("bad fixed header len: " + fixedLen);
         }
@@ -244,17 +244,15 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     private void initPayload() {
         header = bizHeaderLen == 0 ? EMPTY_BYTES : new byte[bizHeaderLen];
         headerPos = 0;
-        body = bodyLen == 0 ? EMPTY_BYTES : new byte[bodyLen];
+        body = new byte[bodyLen];
         bodyPos = 0;
     }
 
     private void nextPayloadState() {
         if (bizHeaderLen > 0) {
             recordState = REC_HEADER;
-        } else if (bodyLen > 0) {
-            recordState = REC_BODY;
         } else {
-            finishRecord();
+            recordState = REC_BODY;
         }
     }
 
@@ -266,19 +264,9 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             return false;
         }
         if (recordState == REC_FIXED_CRC) {
-            if (bizHeaderLen > 0) {
-                recordState = REC_HEADER;
-            } else if (bodyLen > 0) {
-                recordState = REC_BODY;
-            } else {
-                finishRecord();
-            }
+            nextPayloadState();
         } else if (recordState == REC_HEADER_CRC) {
-            if (bodyLen > 0) {
-                recordState = REC_BODY;
-            } else {
-                finishRecord();
-            }
+            recordState = REC_BODY;
         } else {
             finishRecord();
         }

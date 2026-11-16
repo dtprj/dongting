@@ -34,8 +34,10 @@ public class MqSendReq implements Encodable {
     public static final int IDX_MESSAGES = 15;
 
     public static final int IDX_MESSAGE_QUEUE_ID = 1;
-    public static final int IDX_MESSAGE_HEADER = 2;
-    public static final int IDX_MESSAGE_BODY = 3;
+    public static final int IDX_MESSAGE_HEADER_SIZE = 2;
+    public static final int IDX_MESSAGE_BODY_SIZE = 3;
+    public static final int IDX_MESSAGE_HEADER = 4;
+    public static final int IDX_MESSAGE_BODY = 5;
 
     public int groupId;
     // batch writes are not atomic
@@ -68,7 +70,14 @@ public class MqSendReq implements Encodable {
     }
 
     private static int messageSize(DtMsg message) {
+        if (message.body == null || message.body.length == 0) {
+            throw new IllegalArgumentException("message body must not be null or empty");
+        }
+        int headerSize = message.header == null ? 0 : message.header.length;
+        int bodySize = message.body.length;
         return PbUtil.sizeOfFix64Field(IDX_MESSAGE_QUEUE_ID, message.queueId)
+                + PbUtil.sizeOfInt32Field(IDX_MESSAGE_HEADER_SIZE, headerSize)
+                + PbUtil.sizeOfInt32Field(IDX_MESSAGE_BODY_SIZE, bodySize)
                 + PbUtil.sizeOfBytesField(IDX_MESSAGE_HEADER, message.header)
                 + PbUtil.sizeOfBytesField(IDX_MESSAGE_BODY, message.body);
     }
@@ -130,6 +139,17 @@ public class MqSendReq implements Encodable {
                     }
                     // fall through
                 case IDX_MESSAGE_QUEUE_ID:
+                    int headerSize = msg.header == null ? 0 : msg.header.length;
+                    if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_MESSAGE_HEADER_SIZE, headerSize)) {
+                        return false;
+                    }
+                    // fall through
+                case IDX_MESSAGE_HEADER_SIZE:
+                    if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_MESSAGE_BODY_SIZE, msg.body.length)) {
+                        return false;
+                    }
+                    // fall through
+                case IDX_MESSAGE_BODY_SIZE:
                     if (!EncodeUtil.encode(context, destBuffer, IDX_MESSAGE_HEADER, msg.header)) {
                         return false;
                     }

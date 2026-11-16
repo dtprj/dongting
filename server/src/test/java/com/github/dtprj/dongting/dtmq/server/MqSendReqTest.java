@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MqSendReqTest {
     private static final byte[] HEADER = {7, 0, -1, 3};
@@ -40,7 +41,7 @@ class MqSendReqTest {
         assertEquals(3, pb.getMessagesSize());
         assertMessage(pb.getMessages(0), 11, HEADER, new byte[]{1, 2, 3});
         assertMessage(pb.getMessages(1), 22, new byte[0], new byte[]{4, 5});
-        assertMessage(pb.getMessages(2), 33, new byte[0], new byte[0]);
+        assertMessage(pb.getMessages(2), 33, new byte[0], new byte[]{6});
 
         MqSendReqCallback decoded = (MqSendReqCallback) CodecTestUtil.fullBufferDecode(
                 buf, new MqSendReqCallback());
@@ -62,16 +63,26 @@ class MqSendReqTest {
         }
     }
 
+    @Test
+    void testRejectEmptyBody() {
+        List<DtMsg> nullBody = Arrays.asList(new DtMsg(11, HEADER, null));
+        List<DtMsg> emptyBody = Arrays.asList(new DtMsg(11, HEADER, new byte[0]));
+        assertThrows(IllegalArgumentException.class, () -> new MqSendReq(9, nullBody).actualSize());
+        assertThrows(IllegalArgumentException.class, () -> new MqSendReq(9, emptyBody).actualSize());
+    }
+
     private static MqSendReq buildReq() {
         List<DtMsg> messages = Arrays.asList(
                 new DtMsg(11, HEADER, new byte[]{1, 2, 3}),
                 new DtMsg(22, null, new byte[]{4, 5}),
-                new DtMsg(33, new byte[0], null));
+                new DtMsg(33, new byte[0], new byte[]{6}));
         return new MqSendReq(9, messages);
     }
 
     private static void assertMessage(DtMq.MqMessage message, long queueId, byte[] header, byte[] body) {
         assertEquals(queueId, message.getQueueId());
+        assertEquals(header.length, message.getHeaderSize());
+        assertEquals(body.length, message.getBodySize());
         assertArrayEquals(header, message.getMsgHeader().toByteArray());
         assertArrayEquals(body, message.getMsgBody().toByteArray());
     }
@@ -85,5 +96,6 @@ class MqSendReqTest {
         assertEquals(22, decoded.messages.get(1).bizKey);
         assertEquals(2, decoded.messages.get(1).bodyLen);
         assertEquals(33, decoded.messages.get(2).bizKey);
+        assertEquals(1, decoded.messages.get(2).bodyLen);
     }
 }
