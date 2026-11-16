@@ -307,7 +307,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 if (!decode) {
                     fullBufferRef = header.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
                             ? buffers.borrowDirect(header.totalLen)
-                            : buffers.borrow(header.totalLen, false, true, 512);
+                            : buffers.borrow(header.totalLen, false, true);
                     fullBuffer = fullBufferRef.getBuffer();
                     header.writeTo(fullBuffer);
                 }

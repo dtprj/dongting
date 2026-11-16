@@ -39,7 +39,7 @@ public class RefBufferDecoderCallback implements DecoderCallback<RefBuffer> {
     public void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (currentPos == 0) {
-            r = context.buffers.borrow(bodyLen, plain, true, 512);
+            r = context.buffers.borrow(bodyLen, plain, true);
         }
         ByteBuffer bb = r.getBuffer();
         bb.put(buffer);

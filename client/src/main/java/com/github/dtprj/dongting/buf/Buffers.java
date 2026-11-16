@@ -180,12 +180,12 @@ public class Buffers {
         return borrowHeap0(plain, requestSize, 0, true);
     }
 
-    public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-        return borrowHeap0(plain, requestSize, threshold, threadSafeRelease);
+    public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease) {
+        return borrowHeap0(plain, requestSize, plain ? 64 : 600, threadSafeRelease);
     }
 
     /**
-     * Shortcut for {@code borrow(requestSize, true, false, 0)}.
+     * Borrow a plain heap buffer with local-only release.
      */
     public RefBuffer borrowLocal(int requestSize) {
         return borrowHeap0(true, requestSize, 0, false);
@@ -212,12 +212,12 @@ public class Buffers {
         return borrowDirect0(plain, requestSize, 0, true);
     }
 
-    public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
-        return borrowDirect0(plain, requestSize, threshold, threadSafeRelease);
+    public RefBuffer borrowDirect(int requestSize, boolean plain, boolean threadSafeRelease) {
+        return borrowDirect0(plain, requestSize, 0, threadSafeRelease);
     }
 
     /**
-     * Shortcut for {@code borrowDirect(requestSize, true, false, 0)}.
+     * Borrow a plain direct buffer with local-only release.
      */
     public RefBuffer borrowDirectLocal(int requestSize) {
         return borrowDirect0(true, requestSize, 0, false);

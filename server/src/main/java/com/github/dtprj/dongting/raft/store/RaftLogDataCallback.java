@@ -93,7 +93,7 @@ public class RaftLogDataCallback implements DecoderCallback<Void> {
                         }
                         fullRefBuffer = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD ?
                                 context.buffers.borrowDirect(totalLen) :
-                                context.buffers.borrow(totalLen, false, true, 512);
+                                context.buffers.borrow(totalLen, false, true);
                         fullBuffer = fullRefBuffer.getBuffer();
                         fullBuffer.putInt(totalLen);
                         parsedBytes = 0;

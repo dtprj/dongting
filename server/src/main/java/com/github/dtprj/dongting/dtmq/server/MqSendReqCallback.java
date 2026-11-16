@@ -189,7 +189,7 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
             }
             int totalLen = LogHeader.computeTotalLen(headerLen, bodyLen);
             buffer = totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD
-                    ? context.buffers.borrowDirect(totalLen) : context.buffers.borrow(totalLen, false, true, 512);
+                    ? context.buffers.borrowDirect(totalLen) : context.buffers.borrow(totalLen, false, true);
             buffer.getBuffer().position(LogHeader.ITEM_HEADER_SIZE);
         }
 

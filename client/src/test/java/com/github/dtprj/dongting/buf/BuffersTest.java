@@ -59,9 +59,9 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrow(31, false, true, 0);
-        RefBuffer b2 = buffers.borrow(32, false, true, 0);
-        RefBuffer b3 = buffers.borrow(33, false, true, 0);
+        RefBuffer b1 = buffers.borrow(31, false);
+        RefBuffer b2 = buffers.borrow(32, false);
+        RefBuffer b3 = buffers.borrow(33, false);
         assertEquals(32, b1.getBuffer().capacity());
         assertEquals(32, b2.getBuffer().capacity());
         assertEquals(64, b3.getBuffer().capacity());
@@ -78,7 +78,7 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrow(16, false, true, 0);
+        RefBuffer b1 = buffers.borrow(16, false);
         // release in same thread must not invoke callback
         b1.release();
         assertEquals(0, releaseCount.get());
@@ -92,7 +92,7 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrow(16, false, true, 0);
+        RefBuffer b1 = buffers.borrow(16, false);
         Thread t = new Thread(b1::release);
         t.start();
         t.join();
@@ -107,7 +107,7 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrow(64, false, true, 0);
+        RefBuffer b1 = buffers.borrow(64, false);
         // large pool is not thread-safe; threadSafeRelease=true routes cross-thread release
         // through the owner thread via callback
         Thread t = new Thread(b1::release);
@@ -124,7 +124,7 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrowDirect(64, false, true, 0);
+        RefBuffer b1 = buffers.borrowDirect(64, false);
         assertTrue(b1.getBuffer().isDirect());
         assertEquals(64, b1.getBuffer().capacity());
         // large direct buffer: routed through owner thread via callback
@@ -142,7 +142,7 @@ public class BuffersTest {
             releaseCount.incrementAndGet();
             return false;
         });
-        RefBuffer b1 = buffers.borrow(16, false, false, 0);
+        RefBuffer b1 = buffers.borrowLocal(16);
         // local release: no callback, no cross-thread
         assertEquals(16, b1.getBuffer().capacity());
         b1.release();
@@ -157,7 +157,7 @@ public class BuffersTest {
             releaseCount.incrementAndGet();
             return false;
         });
-        RefBuffer b1 = buffers.borrow(16, false, true, 0);
+        RefBuffer b1 = buffers.borrow(16, false);
         // release from non-owner thread with shut-down queue: buffer should be discarded locally
         Thread t = new Thread(b1::release);
         t.start();
@@ -173,7 +173,7 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrowDirect(16, false, true, 0);
+        RefBuffer b1 = buffers.borrowDirect(16, false);
         assertEquals(16, b1.getBuffer().capacity());
         assertTrue(b1.getBuffer().isDirect());
         Thread t = new Thread(b1::release);
@@ -186,7 +186,7 @@ public class BuffersTest {
     public void testLargeBufferReleaseAfterShutdown() throws Exception {
         // callback returns false to simulate owner thread queue shut down
         Buffers buffers = newBuffers(Thread.currentThread(), (rb, c) -> false);
-        RefBuffer b1 = buffers.borrow(64, false, true, 0);
+        RefBuffer b1 = buffers.borrow(64, false);
         assertTrue(b1.getBuffer().capacity() >= 64);
         // cross-thread release with shut-down queue: large buffer queued for deferred release
         Thread t = new Thread(b1::release);
@@ -206,7 +206,7 @@ public class BuffersTest {
             c.accept(rb);
             return true;
         });
-        RefBuffer b1 = buffers.borrow(64, false, true, 0);
+        RefBuffer b1 = buffers.borrow(64, false);
         // release in owner thread invokes localReleasor directly, callback not involved
         b1.release();
         assertEquals(0, releaseCount.get());

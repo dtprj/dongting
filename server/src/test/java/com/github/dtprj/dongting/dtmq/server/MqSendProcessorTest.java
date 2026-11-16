@@ -269,7 +269,7 @@ class MqSendProcessorTest extends ServerTestBase {
         }
 
         @Override
-        public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease, int threshold) {
+        public RefBuffer borrow(int requestSize, boolean plain, boolean threadSafeRelease) {
             RefBuffer buffer = heap.borrow(plain, requestSize);
             borrowed.add(buffer);
             return buffer;
