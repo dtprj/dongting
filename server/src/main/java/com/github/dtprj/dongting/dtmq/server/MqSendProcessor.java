@@ -28,8 +28,6 @@ import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-import java.util.ArrayList;
-
 final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
     MqSendProcessor(RaftServer raftServer) {
         super(raftServer, true, false);
@@ -47,101 +45,64 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
 
     @Override
     protected WritePacket doProcess(ReqInfo<MqSendReqCallback> reqInfo) {
+        MqSendReqCallback body = reqInfo.reqFrame.getBody();
+        boolean submitted = false;
         try {
             DtMQ mq = MqServerUtil.getStateMachine(reqInfo);
             if (mq == null) {
                 return null;
             }
-            ArrayList<RaftReqData> messages = reqInfo.reqFrame.getBody().messages;
-            if (messages == null || messages.isEmpty()) {
-                return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "no messages");
+            RaftReqData data = body.data;
+            if (data.bizKey <= 0) {
+                return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "queueId must be positive");
             }
-            int size = messages.size();
             int maxHeaderSize = mq.serverConfig.maxHeaderSize;
+            if (data.bizHeaderLen > maxHeaderSize) {
+                return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
+                        "message header exceeds maxHeaderSize: " + maxHeaderSize);
+            }
             int maxBodySize = mq.serverConfig.maxBodySize;
-            for (int i = 0; i < size; i++) {
-                RaftReqData data = messages.get(i);
-                if (data.bizKey <= 0) {
-                    return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "queueId must be positive");
-                }
-                if (data.bizHeaderLen > maxHeaderSize) {
-                    return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
-                            "message header exceeds maxHeaderSize: " + maxHeaderSize);
-                }
-                if (data.bodyLen > maxBodySize) {
-                    return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
-                            "message body exceeds maxBodySize: " + maxBodySize);
-                }
+            if (data.bodyLen > maxBodySize) {
+                return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR,
+                        "message body exceeds maxBodySize: " + maxBodySize);
             }
-            SendBatch batch = new SendBatch(reqInfo, size);
-            for (int i = 0; i < size; i++) {
-                SendTask task = new SendTask(batch, messages.get(i));
-                messages.set(i, null);
-                reqInfo.raftGroup.submitLinearTask(task);
-            }
+            reqInfo.raftGroup.submitLinearTask(new SendTask(reqInfo, data)); // RefBuffer ownership changed
+            submitted = true;
         } catch (Exception e) {
             writeErrorResp(reqInfo, e);
         } finally {
-            reqInfo.reqFrame.clean();
+            if (!submitted) {
+                reqInfo.reqFrame.clean(); // call ReadPacket<MqSendReqCallback>.clean() and release MqSendReqCallback.data
+            }
+            body.data = null;
         }
         return null;
     }
 
-    private final class SendBatch {
+    private final class SendTask extends RaftTask implements RaftCallback {
         private ReqInfo<MqSendReqCallback> reqInfo;
-        private int remaining;
-        private Throwable failure;
 
-        private SendBatch(ReqInfo<MqSendReqCallback> reqInfo, int size) {
+        private SendTask(ReqInfo<MqSendReqCallback> reqInfo, RaftReqData data) {
+            super(data, null, null, reqInfo.reqContext.getTimeout(), false, null);
             this.reqInfo = reqInfo;
-            this.remaining = size;
-        }
-
-        // Rejected submissions can call back on the IO thread while other tasks finish on the Raft thread.
-        private synchronized void complete(Throwable ex) {
-            if (ex != null && failure == null) {
-                failure = ex;
-            }
-            if (--remaining != 0) {
-                return;
-            }
-            try {
-                if (failure == null) {
-                    reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
-                } else {
-                    writeErrorResp(reqInfo, failure);
-                }
-            } finally {
-                reqInfo = null;
-                failure = null;
-            }
-        }
-    }
-
-    private static final class SendTask extends RaftTask implements RaftCallback {
-        private SendBatch batch;
-
-        private SendTask(SendBatch batch, RaftReqData data) {
-            super(data, null, null, batch.reqInfo.reqContext.getTimeout(), false, null);
-            this.batch = batch;
             this.callback = this;
         }
 
         @Override
         public void success(long raftIndex, Object result) {
             try {
-                batch.complete(null);
+                reqInfo.reqContext.writeRespInBizThreads(new EmptyBodyRespPacket(CmdCodes.SUCCESS));
             } finally {
-                batch = null;
+                reqInfo = null;
             }
         }
 
         @Override
         public void fail(Throwable ex) {
             try {
-                batch.complete(ex);
+                writeErrorResp(reqInfo, ex);
             } finally {
-                batch = null;
+                reqInfo = null;
             }
         }
     }

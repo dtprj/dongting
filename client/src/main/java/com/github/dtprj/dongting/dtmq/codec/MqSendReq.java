@@ -23,63 +23,57 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.dtmq.DtMsg;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 /**
  * @author huangli
  */
 public class MqSendReq implements Encodable {
     public static final int IDX_GROUP_ID = 1;
-    public static final int IDX_MESSAGES_SIZE = 2;
-    public static final int IDX_MESSAGES = 15;
-
-    public static final int IDX_MESSAGE_QUEUE_ID = 1;
-    public static final int IDX_MESSAGE_HEADER_SIZE = 2;
-    public static final int IDX_MESSAGE_BODY_SIZE = 3;
-    public static final int IDX_MESSAGE_HEADER = 4;
-    public static final int IDX_MESSAGE_BODY = 5;
+    public static final int IDX_QUEUE_ID = 2;
+    public static final int IDX_HEADER_SIZE = 3;
+    public static final int IDX_BODY_SIZE = 4;
+    public static final int IDX_HEADER = 14;
+    public static final int IDX_BODY = 15;
 
     public int groupId;
-    // batch writes are not atomic
-    public List<DtMsg> messages;
+    // 1-based; 0 is reserved
+    public long queueId;
+    // opaque bytes, not interpreted by the state machine
+    public byte[] header;
+    // not null or empty
+    public byte[] body;
 
     private int encodeSize;
-    private final MessageEncoder messageEncoder = new MessageEncoder();
 
     public MqSendReq() {
     }
 
-    public MqSendReq(int groupId, List<DtMsg> messages) {
+    public MqSendReq(int groupId, DtMsg message) {
         this.groupId = groupId;
-        this.messages = messages;
+        this.queueId = message.queueId;
+        this.header = message.header;
+        this.body = message.body;
+    }
+
+    private int headerSize() {
+        return header == null ? 0 : header.length;
     }
 
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
-            int size = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId);
-            int count = messages == null ? 0 : messages.size();
-            size += PbUtil.sizeOfInt32Field(IDX_MESSAGES_SIZE, count);
-            for (int i = 0; i < count; i++) {
-                int messageSize = messageSize(messages.get(i));
-                size += PbUtil.sizeOfLenFieldPrefix(IDX_MESSAGES, messageSize) + messageSize;
+            if (body == null || body.length == 0) {
+                throw new IllegalArgumentException("message body must not be null or empty");
             }
-            encodeSize = size;
+            int bodySize = body.length;
+            encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
+                    + PbUtil.sizeOfFix64Field(IDX_QUEUE_ID, queueId)
+                    + PbUtil.sizeOfInt32Field(IDX_HEADER_SIZE, headerSize())
+                    + PbUtil.sizeOfInt32Field(IDX_BODY_SIZE, bodySize)
+                    + PbUtil.sizeOfBytesField(IDX_HEADER, header)
+                    + PbUtil.sizeOfBytesField(IDX_BODY, body);
         }
         return encodeSize;
-    }
-
-    private static int messageSize(DtMsg message) {
-        if (message.body == null || message.body.length == 0) {
-            throw new IllegalArgumentException("message body must not be null or empty");
-        }
-        int headerSize = message.header == null ? 0 : message.header.length;
-        int bodySize = message.body.length;
-        return PbUtil.sizeOfFix64Field(IDX_MESSAGE_QUEUE_ID, message.queueId)
-                + PbUtil.sizeOfInt32Field(IDX_MESSAGE_HEADER_SIZE, headerSize)
-                + PbUtil.sizeOfInt32Field(IDX_MESSAGE_BODY_SIZE, bodySize)
-                + PbUtil.sizeOfBytesField(IDX_MESSAGE_HEADER, message.header)
-                + PbUtil.sizeOfBytesField(IDX_MESSAGE_BODY, message.body);
     }
 
     @Override
@@ -91,74 +85,29 @@ public class MqSendReq implements Encodable {
                 }
                 // fall through
             case IDX_GROUP_ID:
-                int count = messages == null ? 0 : messages.size();
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_MESSAGES_SIZE, count)) {
+                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_QUEUE_ID, queueId)) {
                     return false;
                 }
                 // fall through
-            case IDX_MESSAGES_SIZE:
-                return encodeMessages(context, destBuffer);
+            case IDX_QUEUE_ID:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_HEADER_SIZE, headerSize())) {
+                    return false;
+                }
+                // fall through
+            case IDX_HEADER_SIZE:
+                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_BODY_SIZE, body.length)) {
+                    return false;
+                }
+                // fall through
+            case IDX_BODY_SIZE:
+                if (!EncodeUtil.encode(context, destBuffer, IDX_HEADER, header)) {
+                    return false;
+                }
+                // fall through
+            case IDX_HEADER:
+                return EncodeUtil.encode(context, destBuffer, IDX_BODY, body);
             default:
                 throw new CodecException(context);
-        }
-    }
-
-    private boolean encodeMessages(EncodeContext context, ByteBuffer destBuffer) {
-        int count = messages == null ? 0 : messages.size();
-        if (count == 0) {
-            context.stage = IDX_MESSAGES;
-            return true;
-        }
-        // the nested stage is the current message index; the message encoder holds the rest of the state
-        EncodeContext mc = context.createOrGetNestedContext(false);
-        for (int index = mc.stage; index < count; index++) {
-            messageEncoder.msg = messages.get(index);
-            if (!EncodeUtil.encode(mc, destBuffer, IDX_MESSAGES, messageEncoder)) {
-                return false;
-            }
-            mc.stage = index + 1;
-        }
-        context.stage = IDX_MESSAGES;
-        return true;
-    }
-
-    private static final class MessageEncoder implements Encodable {
-        private DtMsg msg;
-
-        @Override
-        public int actualSize() {
-            return messageSize(msg);
-        }
-
-        @Override
-        public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-            switch (context.stage) {
-                case EncodeContext.STAGE_BEGIN:
-                    if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_MESSAGE_QUEUE_ID, msg.queueId)) {
-                        return false;
-                    }
-                    // fall through
-                case IDX_MESSAGE_QUEUE_ID:
-                    int headerSize = msg.header == null ? 0 : msg.header.length;
-                    if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_MESSAGE_HEADER_SIZE, headerSize)) {
-                        return false;
-                    }
-                    // fall through
-                case IDX_MESSAGE_HEADER_SIZE:
-                    if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_MESSAGE_BODY_SIZE, msg.body.length)) {
-                        return false;
-                    }
-                    // fall through
-                case IDX_MESSAGE_BODY_SIZE:
-                    if (!EncodeUtil.encode(context, destBuffer, IDX_MESSAGE_HEADER, msg.header)) {
-                        return false;
-                    }
-                    // fall through
-                case IDX_MESSAGE_HEADER:
-                    return EncodeUtil.encode(context, destBuffer, IDX_MESSAGE_BODY, msg.body);
-                default:
-                    throw new CodecException(context);
-            }
         }
     }
 }

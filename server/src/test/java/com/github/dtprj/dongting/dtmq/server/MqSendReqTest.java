@@ -18,19 +18,18 @@ package com.github.dtprj.dongting.dtmq.server;
 import com.github.dtprj.dongting.dtmq.DtMsg;
 import com.github.dtprj.dongting.dtmq.codec.MqSendReq;
 import com.github.dtprj.dongting.dtmq.proto.DtMq;
+import com.github.dtprj.dongting.raft.server.RaftReqData;
+import com.github.dtprj.dongting.raft.store.LogHeader;
 import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class MqSendReqTest {
     private static final byte[] HEADER = {7, 0, -1, 3};
+    private static final byte[] BODY = {1, 2, 3};
 
     @Test
     void testFullBuffer() throws Exception {
@@ -38,12 +37,13 @@ class MqSendReqTest {
         ByteBuffer buf = CodecTestUtil.fullBufferEncode(req);
         DtMq.MqSendReq pb = DtMq.MqSendReq.parseFrom(buf);
         assertEquals(9, pb.getGroupId());
-        assertEquals(3, pb.getMessagesSize());
-        assertMessage(pb.getMessages(0), 11, HEADER, new byte[]{1, 2, 3});
-        assertMessage(pb.getMessages(1), 22, new byte[0], new byte[]{4, 5});
-        assertMessage(pb.getMessages(2), 33, new byte[0], new byte[]{6});
+        assertEquals(11, pb.getQueueId());
+        assertEquals(HEADER.length, pb.getHeaderSize());
+        assertEquals(BODY.length, pb.getBodySize());
+        assertArrayEquals(HEADER, pb.getMsgHeader().toByteArray());
+        assertArrayEquals(BODY, pb.getMsgBody().toByteArray());
 
-        MqSendReqCallback decoded = (MqSendReqCallback) CodecTestUtil.fullBufferDecode(
+        MqSendReqCallback decoded = CodecTestUtil.fullBufferDecode(
                 buf, new MqSendReqCallback());
         try {
             assertDecoded(decoded);
@@ -65,37 +65,23 @@ class MqSendReqTest {
 
     @Test
     void testRejectEmptyBody() {
-        List<DtMsg> nullBody = Arrays.asList(new DtMsg(11, HEADER, null));
-        List<DtMsg> emptyBody = Arrays.asList(new DtMsg(11, HEADER, new byte[0]));
-        assertThrows(IllegalArgumentException.class, () -> new MqSendReq(9, nullBody).actualSize());
-        assertThrows(IllegalArgumentException.class, () -> new MqSendReq(9, emptyBody).actualSize());
+        assertThrows(IllegalArgumentException.class,
+                () -> new MqSendReq(9, new DtMsg(11, HEADER, null)).actualSize());
+        assertThrows(IllegalArgumentException.class,
+                () -> new MqSendReq(9, new DtMsg(11, HEADER, new byte[0])).actualSize());
     }
 
     private static MqSendReq buildReq() {
-        List<DtMsg> messages = Arrays.asList(
-                new DtMsg(11, HEADER, new byte[]{1, 2, 3}),
-                new DtMsg(22, null, new byte[]{4, 5}),
-                new DtMsg(33, new byte[0], new byte[]{6}));
-        return new MqSendReq(9, messages);
-    }
-
-    private static void assertMessage(DtMq.MqMessage message, long queueId, byte[] header, byte[] body) {
-        assertEquals(queueId, message.getQueueId());
-        assertEquals(header.length, message.getHeaderSize());
-        assertEquals(body.length, message.getBodySize());
-        assertArrayEquals(header, message.getMsgHeader().toByteArray());
-        assertArrayEquals(body, message.getMsgBody().toByteArray());
+        return new MqSendReq(9, new DtMsg(11, HEADER, BODY));
     }
 
     private static void assertDecoded(MqSendReqCallback decoded) {
         assertEquals(9, decoded.groupId);
-        assertEquals(3, decoded.messages.size());
-        assertEquals(11, decoded.messages.get(0).bizKey);
-        assertEquals(HEADER.length, decoded.messages.get(0).bizHeaderLen);
-        assertEquals(3, decoded.messages.get(0).bodyLen);
-        assertEquals(22, decoded.messages.get(1).bizKey);
-        assertEquals(2, decoded.messages.get(1).bodyLen);
-        assertEquals(33, decoded.messages.get(2).bizKey);
-        assertEquals(1, decoded.messages.get(2).bodyLen);
+        RaftReqData data = decoded.data;
+        assertNotNull(data);
+        assertEquals(11, data.bizKey);
+        assertEquals(HEADER.length, data.bizHeaderLen);
+        assertEquals(BODY.length, data.bodyLen);
+        assertEquals(LogHeader.TYPE_NORMAL, data.type);
     }
 }
