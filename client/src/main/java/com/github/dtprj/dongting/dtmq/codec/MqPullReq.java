@@ -117,9 +117,10 @@ public class MqPullReq implements Encodable {
                 PbUtil.writeInt32Field(destBuffer, IDX_LIMIT, limit);
                 PbUtil.writeInt32Field(destBuffer, IDX_BYTES_LIMIT, bytesLimit);
                 PbUtil.writeInt64Field(destBuffer, IDX_WAIT_MILLIS, waitMillis);
-                context.stage = IDX_QUEUES;
+                context.stage = IDX_WAIT_MILLIS;
+                context.createOrGetNestedContext().reset();
                 // fall through
-            case IDX_QUEUES:
+            case IDX_WAIT_MILLIS:
                 return encodeQueues(context, destBuffer);
             default:
                 throw new CodecException(context);
@@ -130,8 +131,8 @@ public class MqPullReq implements Encodable {
         long[] queueIds = this.queueIds;
         long[] fromSeqs = this.fromSeqs;
         int count = queueIds == null ? 0 : queueIds.length;
+        EncodeContext qc = context.createOrGetNestedContext();
         // the nested stage is the index of the next queue to write
-        EncodeContext qc = context.createOrGetNestedContext(false);
         for (int index = qc.stage; index < count; index++) {
             long queueId = queueIds[index];
             long fromSeq = fromSeqs[index];

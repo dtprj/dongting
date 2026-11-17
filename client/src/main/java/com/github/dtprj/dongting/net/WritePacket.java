@@ -116,6 +116,9 @@ public abstract class WritePacket extends Packet implements Encodable {
                 return false;
             } else {
                 writeHeader(buf);
+                if (bodySize > 0) {
+                    context.createOrGetNestedContext().reset();
+                }
                 step = STATUS_HEADER_ENCODE_FINISHED;
             }
         }
@@ -124,7 +127,7 @@ public abstract class WritePacket extends Packet implements Encodable {
             try {
                 if (bodySize > 0) {
                     int x = buf.position();
-                    finish = encodeBody(context.createOrGetNestedContext(false), buf);
+                    finish = encodeBody(context.createOrGetNestedContext(), buf);
                     x = buf.position() - x;
                     if (finish) {
                         if (bodySize != x + context.pending) {

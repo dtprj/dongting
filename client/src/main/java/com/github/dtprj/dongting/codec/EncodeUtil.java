@@ -142,11 +142,13 @@ public class EncodeUtil {
     }
 
     private static EncodeContext sub(EncodeContext c, int p1, int p2) {
+        EncodeContext sc = c.createOrGetNestedContext();
         if (c.pending == p1) {
             c.pending = p2;
-            return c.createOrGetNestedContext(true);
+            sc.reset();
+            return sc;
         } else if (c.pending == p2) {
-            return c.createOrGetNestedContext(false);
+            return sc;
         } else {
             throw new CodecException(c);
         }

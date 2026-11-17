@@ -31,7 +31,6 @@ public class EncodeContext {
     public int pending;
 
     private EncodeContext nested;
-    private boolean nestedUse;
 
     public EncodeContext(Buffers buffers) {
         this.buffers = buffers;
@@ -41,19 +40,11 @@ public class EncodeContext {
         this.status = null;
         this.stage = STAGE_BEGIN;
         this.pending = 0;
-        if (nestedUse) {
-            nested.reset();
-            nestedUse = false;
-        }
     }
 
-    public EncodeContext createOrGetNestedContext(boolean reset) {
+    public EncodeContext createOrGetNestedContext() {
         if (nested == null) {
             nested = new EncodeContext(buffers);
-        }
-        nestedUse = true;
-        if (reset) {
-            nested.reset();
         }
         return nested;
     }
