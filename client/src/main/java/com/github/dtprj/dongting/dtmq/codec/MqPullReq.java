@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtmq.codec;
 import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.EncodeUtil;
 import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
@@ -51,7 +50,7 @@ public class MqPullReq implements Encodable {
     public long waitMillis;
 
     private int encodeSize;
-    private final DetailEncoder detailEncoder = new DetailEncoder();
+    private int prefixSize;
 
     public MqPullReq() {
     }
@@ -75,14 +74,12 @@ public class MqPullReq implements Encodable {
 
     @Override
     public int actualSize() {
+        long[] queueIds = this.queueIds;
+        long[] fromSeqs = this.fromSeqs;
         if (encodeSize == 0) {
             checkQueues();
             int count = queueIds == null ? 0 : queueIds.length;
-            int size = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
-                    + PbUtil.sizeOfInt32Field(IDX_QUEUES_SIZE, count)
-                    + PbUtil.sizeOfInt32Field(IDX_LIMIT, limit)
-                    + PbUtil.sizeOfInt32Field(IDX_BYTES_LIMIT, bytesLimit)
-                    + PbUtil.sizeOfInt64Field(IDX_WAIT_MILLIS, waitMillis);
+            int size = prefixSize();
             for (int i = 0; i < count; i++) {
                 int detailSize = detailSize(queueIds[i], fromSeqs[i]);
                 size += PbUtil.sizeOfLenFieldPrefix(IDX_QUEUES, detailSize) + detailSize;
@@ -90,6 +87,17 @@ public class MqPullReq implements Encodable {
             encodeSize = size;
         }
         return encodeSize;
+    }
+
+    private int prefixSize() {
+        if (prefixSize == 0) {
+            prefixSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
+                    + PbUtil.sizeOfInt32Field(IDX_QUEUES_SIZE, queueIds == null ? 0 : queueIds.length)
+                    + PbUtil.sizeOfInt32Field(IDX_LIMIT, limit)
+                    + PbUtil.sizeOfInt32Field(IDX_BYTES_LIMIT, bytesLimit)
+                    + PbUtil.sizeOfInt64Field(IDX_WAIT_MILLIS, waitMillis);
+        }
+        return prefixSize;
     }
 
     private static int detailSize(long queueId, long fromSeq) {
@@ -101,32 +109,17 @@ public class MqPullReq implements Encodable {
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+                if (destBuffer.remaining() < prefixSize()) {
                     return false;
                 }
+                PbUtil.writeInt32Field(destBuffer, IDX_GROUP_ID, groupId);
+                PbUtil.writeInt32Field(destBuffer, IDX_QUEUES_SIZE, queueIds == null ? 0 : queueIds.length);
+                PbUtil.writeInt32Field(destBuffer, IDX_LIMIT, limit);
+                PbUtil.writeInt32Field(destBuffer, IDX_BYTES_LIMIT, bytesLimit);
+                PbUtil.writeInt64Field(destBuffer, IDX_WAIT_MILLIS, waitMillis);
+                context.stage = IDX_QUEUES;
                 // fall through
-            case IDX_GROUP_ID:
-                int count = queueIds == null ? 0 : queueIds.length;
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_QUEUES_SIZE, count)) {
-                    return false;
-                }
-                // fall through
-            case IDX_QUEUES_SIZE:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_LIMIT, limit)) {
-                    return false;
-                }
-                // fall through
-            case IDX_LIMIT:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_BYTES_LIMIT, bytesLimit)) {
-                    return false;
-                }
-                // fall through
-            case IDX_BYTES_LIMIT:
-                if (!EncodeUtil.encodeInt64(context, destBuffer, IDX_WAIT_MILLIS, waitMillis)) {
-                    return false;
-                }
-                // fall through
-            case IDX_WAIT_MILLIS:
+            case IDX_QUEUES:
                 return encodeQueues(context, destBuffer);
             default:
                 throw new CodecException(context);
@@ -134,47 +127,25 @@ public class MqPullReq implements Encodable {
     }
 
     private boolean encodeQueues(EncodeContext context, ByteBuffer destBuffer) {
+        long[] queueIds = this.queueIds;
+        long[] fromSeqs = this.fromSeqs;
         int count = queueIds == null ? 0 : queueIds.length;
-        if (count == 0) {
-            context.stage = IDX_QUEUES;
-            return true;
-        }
-        // the nested stage is the current queue index; the detail encoder holds the rest of the state
+        // the nested stage is the index of the next queue to write
         EncodeContext qc = context.createOrGetNestedContext(false);
         for (int index = qc.stage; index < count; index++) {
-            detailEncoder.queueId = queueIds[index];
-            detailEncoder.fromSeq = fromSeqs[index];
-            if (!EncodeUtil.encode(qc, destBuffer, IDX_QUEUES, detailEncoder)) {
+            long queueId = queueIds[index];
+            long fromSeq = fromSeqs[index];
+            int detailSize = detailSize(queueId, fromSeq);
+            if (destBuffer.remaining() < PbUtil.sizeOfLenFieldPrefix(IDX_QUEUES, detailSize) + detailSize) {
+                qc.stage = index;
                 return false;
             }
-            qc.stage = index + 1;
+            PbUtil.writeLenFieldPrefix(destBuffer, IDX_QUEUES, detailSize);
+            PbUtil.writeFix64Field(destBuffer, IDX_DETAIL_QUEUE_ID, queueId);
+            PbUtil.writeFix64Field(destBuffer, IDX_DETAIL_FROM_SEQ, fromSeq);
         }
+        qc.stage = EncodeContext.STAGE_END;
         context.stage = IDX_QUEUES;
         return true;
-    }
-
-    private static final class DetailEncoder implements Encodable {
-        private long queueId;
-        private long fromSeq;
-
-        @Override
-        public int actualSize() {
-            return detailSize(queueId, fromSeq);
-        }
-
-        @Override
-        public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
-            switch (context.stage) {
-                case EncodeContext.STAGE_BEGIN:
-                    if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_DETAIL_QUEUE_ID, queueId)) {
-                        return false;
-                    }
-                    // fall through
-                case IDX_DETAIL_QUEUE_ID:
-                    return EncodeUtil.encodeFix64(context, destBuffer, IDX_DETAIL_FROM_SEQ, fromSeq);
-                default:
-                    throw new CodecException(context);
-            }
-        }
     }
 }

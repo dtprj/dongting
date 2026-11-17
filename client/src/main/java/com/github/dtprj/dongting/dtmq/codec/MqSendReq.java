@@ -44,6 +44,7 @@ public class MqSendReq implements Encodable {
     public byte[] body;
 
     private int encodeSize;
+    private int prefixSize;
 
     public MqSendReq() {
     }
@@ -55,49 +56,41 @@ public class MqSendReq implements Encodable {
         this.body = message.body;
     }
 
-    private int headerSize() {
-        return header == null ? 0 : header.length;
-    }
-
     @Override
     public int actualSize() {
         if (encodeSize == 0) {
             if (body == null || body.length == 0) {
                 throw new IllegalArgumentException("message body must not be null or empty");
             }
-            int bodySize = body.length;
-            encodeSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
-                    + PbUtil.sizeOfFix64Field(IDX_QUEUE_ID, queueId)
-                    + PbUtil.sizeOfInt32Field(IDX_HEADER_SIZE, headerSize())
-                    + PbUtil.sizeOfInt32Field(IDX_BODY_SIZE, bodySize)
+            encodeSize = prefixSize()
                     + PbUtil.sizeOfBytesField(IDX_HEADER, header)
                     + PbUtil.sizeOfBytesField(IDX_BODY, body);
         }
         return encodeSize;
     }
 
+    private int prefixSize() {
+        if (prefixSize == 0) {
+            prefixSize = PbUtil.sizeOfInt32Field(IDX_GROUP_ID, groupId)
+                    + PbUtil.sizeOfFix64Field(IDX_QUEUE_ID, queueId)
+                    + PbUtil.sizeOfInt32Field(IDX_HEADER_SIZE, header == null ? 0 : header.length)
+                    + PbUtil.sizeOfInt32Field(IDX_BODY_SIZE, body.length);
+        }
+        return prefixSize;
+    }
+
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
         switch (context.stage) {
             case EncodeContext.STAGE_BEGIN:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_GROUP_ID, groupId)) {
+                if (destBuffer.remaining() < prefixSize()) {
                     return false;
                 }
-                // fall through
-            case IDX_GROUP_ID:
-                if (!EncodeUtil.encodeFix64(context, destBuffer, IDX_QUEUE_ID, queueId)) {
-                    return false;
-                }
-                // fall through
-            case IDX_QUEUE_ID:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_HEADER_SIZE, headerSize())) {
-                    return false;
-                }
-                // fall through
-            case IDX_HEADER_SIZE:
-                if (!EncodeUtil.encodeInt32(context, destBuffer, IDX_BODY_SIZE, body.length)) {
-                    return false;
-                }
+                PbUtil.writeInt32Field(destBuffer, IDX_GROUP_ID, groupId);
+                PbUtil.writeFix64Field(destBuffer, IDX_QUEUE_ID, queueId);
+                PbUtil.writeInt32Field(destBuffer, IDX_HEADER_SIZE, header == null ? 0 : header.length);
+                PbUtil.writeInt32Field(destBuffer, IDX_BODY_SIZE, body.length);
+                context.stage = IDX_BODY_SIZE;
                 // fall through
             case IDX_BODY_SIZE:
                 if (!EncodeUtil.encode(context, destBuffer, IDX_HEADER, header)) {
