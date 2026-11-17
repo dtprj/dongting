@@ -43,6 +43,7 @@ import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.RaftServerEventPush;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
@@ -233,6 +234,7 @@ public class RaftServer extends AbstractLifeCircle implements ChannelListener {
         nc.maxInBytes = 0;
         nc.maxBodySize = 16 * 1024 * 1024;
         nc.maxPacketSize = nc.maxBodySize + NioNet.SIZE_DELTA;
+        nc.decodeContextFactory = DecodeContextEx::new;
     }
 
     protected void customReplicateNioClient(@SuppressWarnings("unused") NioClientConfig c) {

@@ -124,7 +124,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         BiFunction<RefBuffer, Consumer<RefBuffer>, Boolean> callback = (rb, c) ->
                 ioWorkerQueue.scheduleFromBizThread(() -> c.accept(rb));
         this.buffers = config.poolFactory.createPool(timestamp);
-        this.thread = new WorkerThread(this, workerName, timestamp, buffers);
+        this.thread = new WorkerThread(this, config.decodeContextFactory, workerName, timestamp, buffers);
         config.poolFactory.initPool(buffers, thread, callback);
 
         workerStatus = new WorkerStatus(this, ioWorkerQueue,
@@ -380,7 +380,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channelIndex++;
         }
         // the worker thread is multiplexing, so can't use threadLocal DecodeContext
-        DecodeContext decodeContext = new DecodeContext(workerStatus.buffers, DtThread.currentDtThread().threadLocalBuffer);
+        DecodeContext decodeContext = config.decodeContextFactory.apply(workerStatus.buffers,
+                DtThread.currentDtThread().threadLocalBuffer);
         DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++, decodeContext);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.subQueue.setSelectionKey(selectionKey);

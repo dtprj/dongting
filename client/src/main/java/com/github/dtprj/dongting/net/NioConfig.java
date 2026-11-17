@@ -15,13 +15,16 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -49,6 +52,8 @@ public abstract class NioConfig {
     public int readBufferSize = 128 * 1024;
 
     public PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
+
+    public BiFunction<Buffers, byte[], DecodeContext> decodeContextFactory = DecodeContext::new;
 
     public List<ChannelListener> channelListeners = new ArrayList<>(1);
 

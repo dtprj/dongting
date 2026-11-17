@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -117,7 +118,7 @@ class MqSendProcessorTest extends ServerTestBase {
         DtMq.MqSendReq req = request(11, ByteString.EMPTY, body(MAX_BODY));
         byte[] bytes = req.toByteArray();
         try (TrackingBuffers buffers = new TrackingBuffers()) {
-            DecodeContext context = new DecodeContext(buffers, null);
+            DecodeContext context = new DecodeContextEx(buffers, null);
             PbParser parser = new PbParser();
             parser.prepareNext(context, new MqSendReqCallback(), bytes.length);
             try {
@@ -146,7 +147,7 @@ class MqSendProcessorTest extends ServerTestBase {
     void testDecodeRejectsMissingBodySize() {
         byte[] bytes = request(11, HEADER, ByteString.EMPTY).toByteArray();
         try (TrackingBuffers buffers = new TrackingBuffers()) {
-            DecodeContext context = new DecodeContext(buffers, null);
+            DecodeContext context = new DecodeContextEx(buffers, null);
             assertThrows(CodecException.class, () -> decode(context, bytes, bytes.length));
             buffers.assertAllReleased();
         }

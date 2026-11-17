@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 
+import java.util.function.BiFunction;
+
 /**
  * @author huangli
  */
@@ -34,11 +36,12 @@ public final class WorkerThread extends DtThread {
 
     final NioWorker worker;
 
-    WorkerThread(NioWorker worker, String name, Timestamp ts, Buffers buffers) {
+    WorkerThread(NioWorker worker, BiFunction<Buffers, byte[], DecodeContext> decodeContextFactory,
+                 String name, Timestamp ts, Buffers buffers) {
         super(worker, name, buffers);
         this.ts = ts;
         this.worker = worker;
-        this.decodeContext = new DecodeContext(buffers, threadLocalBuffer);
+        this.decodeContext = decodeContextFactory.apply(buffers, threadLocalBuffer);
     }
 
     public static WorkerThread currentWorkerThread() {

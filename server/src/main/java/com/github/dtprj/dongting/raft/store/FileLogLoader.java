@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.fiber.DispatcherThread;
@@ -26,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -66,7 +66,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
     private final RaftCodecFactory codecFactory;
-    private final DecodeContext decodeContext;
+    private final DecodeContextEx decodeContext;
     private final Decoder decoder;
     private boolean error;
     private boolean close;
@@ -97,7 +97,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.buffers = t.buffers;
         this.readBufferRef = t.buffers.borrowLocal(readBufferSize);
         this.readBuffer = readBufferRef.getBuffer();
-        this.decodeContext = new DecodeContext(t.buffers, t.threadLocalBuffer);
+        this.decodeContext = new DecodeContextEx(t.buffers, t.threadLocalBuffer);
         this.decoder = new Decoder();
         reset();
     }
