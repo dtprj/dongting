@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.buf.Buffers;
 import com.github.dtprj.dongting.codec.DecodeContext;
 
+import java.util.zip.CRC32C;
+
 /**
  * Decode context used on server side, where Java 11 and server-only classes are available.
  *
@@ -25,12 +27,20 @@ import com.github.dtprj.dongting.codec.DecodeContext;
  */
 public final class DecodeContextEx extends DecodeContext {
 
+    public final CRC32C crc;
+
     public DecodeContextEx(Buffers buffers, byte[] threadLocalBuffer) {
+        this(buffers, threadLocalBuffer, new CRC32C());
+    }
+
+    private DecodeContextEx(Buffers buffers, byte[] threadLocalBuffer, CRC32C crc) {
         super(buffers, threadLocalBuffer);
+        this.crc = crc;
     }
 
     @Override
     protected DecodeContextEx createNestedInstance() {
-        return new DecodeContextEx(buffers, threadLocalBuffer);
+        // outer and nested contexts share one crc instance, they never use it at the same time
+        return new DecodeContextEx(buffers, threadLocalBuffer, crc);
     }
 }

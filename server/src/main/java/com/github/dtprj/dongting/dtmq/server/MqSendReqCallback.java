@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.common.DtCleanable;
 import com.github.dtprj.dongting.dtmq.codec.MqSendReq;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftReqData;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -35,7 +36,6 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleanable {
-    private final CRC32C crc = new CRC32C();
     int groupId;
     RaftReqData data;
 
@@ -98,6 +98,7 @@ final class MqSendReqCallback implements PbCallback<MqSendReqCallback>, DtCleana
         if (index != MqSendReq.IDX_HEADER && index != MqSendReq.IDX_BODY) {
             return;
         }
+        CRC32C crc = ((DecodeContextEx) context).crc;
         if (currentPos == 0) {
             checkOrder(index);
             int declaredLen = index == MqSendReq.IDX_HEADER ? headerLen : bodyLen;
