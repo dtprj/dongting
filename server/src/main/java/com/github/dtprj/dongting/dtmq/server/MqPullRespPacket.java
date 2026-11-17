@@ -48,7 +48,7 @@ public final class MqPullRespPacket extends PreEncodedWritePacket {
         int size = PbUtil.sizeOfInt32Field(MqPullResp.IDX_RESULTS_SIZE, queueIds.length);
         for (int i = 0; i < queueIds.length; i++) {
             int n = resultSize(queueIds[i], fromSeqs[i], results == null ? null : results[i]);
-            size += PbUtil.sizeOfLenFieldPrefix(MqPullResp.IDX_RESULTS, n) + n;
+            size += PbUtil.sizeOfLenField(MqPullResp.IDX_RESULTS, n);
         }
         return size + (bytes == 0 ? 0 : PbUtil.sizeOfLenFieldPrefix(MqPullResp.IDX_RECORDS, bytes));
     }

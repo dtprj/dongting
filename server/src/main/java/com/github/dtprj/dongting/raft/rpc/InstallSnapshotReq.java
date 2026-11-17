@@ -225,7 +225,7 @@ public class InstallSnapshotReq extends RaftConfigRpcData implements DtCleanable
             RefBuffer rb = req.data;
             if (rb != null && rb.getBuffer().hasRemaining()) {
                 totalPreEncodedSize = rb.getBuffer().remaining();
-                x += PbUtil.sizeOfLenFieldPrefix(IDX_DATA, totalPreEncodedSize) + totalPreEncodedSize;
+                x += PbUtil.sizeOfLenField(IDX_DATA, totalPreEncodedSize);
             }
             this.headerSize = x - totalPreEncodedSize;
         }

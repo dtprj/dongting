@@ -101,7 +101,7 @@ public abstract class WritePacket extends Packet implements Encodable {
             int bodySize = actualBodySize();
             if (bodySize > 0) {
                 // bytes body = 15;
-                dumpSize += PbUtil.sizeOfLenFieldPrefix(IDX_BODY, bodySize) + bodySize;
+                dumpSize += PbUtil.sizeOfLenField(IDX_BODY, bodySize);
             }
             this.dumpSize = dumpSize;
         }

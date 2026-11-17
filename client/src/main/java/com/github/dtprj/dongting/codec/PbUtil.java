@@ -236,7 +236,7 @@ public final class PbUtil {
         if (len == 0) {
             return 0;
         }
-        return sizeOfTag(index) + sizeOfUnsignedInt32(len) + len;
+        return sizeOfLenField(index, len);
     }
 
     public static int sizeOfUTF8(int index, String str) {
@@ -385,11 +385,15 @@ public final class PbUtil {
         if (bs == null || bs.length == 0) {
             return 0;
         }
-        return sizeOfTag(index) + sizeOfUnsignedInt32(bs.length) + bs.length;
+        return sizeOfLenField(index, bs.length);
     }
 
     public static int sizeOfLenFieldPrefix(int index, int bodyLen) {
         return sizeOfTag(index) + sizeOfUnsignedInt32(bodyLen);
+    }
+
+    public static int sizeOfLenField(int index, int bodyLen) {
+        return sizeOfLenFieldPrefix(index, bodyLen) + bodyLen;
     }
 
     public static int sizeOfBytesListField(int pbIndex, List<byte[]> list) {
@@ -399,8 +403,7 @@ public final class PbUtil {
         int size = 0;
         for (int len = list.size(), i = 0; i < len; i++) {
             byte[] e = list.get(i);
-            int s = e == null ? 0 : e.length;
-            size += sizeOfLenFieldPrefix(pbIndex, s) + s;
+            size += sizeOfLenField(pbIndex, e == null ? 0 : e.length);
         }
         return size;
     }

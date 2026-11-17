@@ -82,7 +82,7 @@ public class MqPullReq implements Encodable {
             int size = prefixSize();
             for (int i = 0; i < count; i++) {
                 int detailSize = detailSize(queueIds[i], fromSeqs[i]);
-                size += PbUtil.sizeOfLenFieldPrefix(IDX_QUEUES, detailSize) + detailSize;
+                size += PbUtil.sizeOfLenField(IDX_QUEUES, detailSize);
             }
             encodeSize = size;
         }
@@ -137,7 +137,7 @@ public class MqPullReq implements Encodable {
             long queueId = queueIds[index];
             long fromSeq = fromSeqs[index];
             int detailSize = detailSize(queueId, fromSeq);
-            if (destBuffer.remaining() < PbUtil.sizeOfLenFieldPrefix(IDX_QUEUES, detailSize) + detailSize) {
+            if (destBuffer.remaining() < PbUtil.sizeOfLenField(IDX_QUEUES, detailSize)) {
                 qc.stage = index;
                 return false;
             }

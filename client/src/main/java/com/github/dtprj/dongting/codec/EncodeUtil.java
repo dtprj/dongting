@@ -49,7 +49,7 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.actualSize();
-        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
+        return PbUtil.sizeOfLenField(pbIndex, s);
     }
 
     // encode empty object, not encode null object
@@ -94,7 +94,7 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.actualSize();
-        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
+        return PbUtil.sizeOfLenField(pbIndex, s);
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, Encodable o) {
@@ -113,7 +113,7 @@ public class EncodeUtil {
             return 0;
         }
         int s = o.actualSize();
-        return PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
+        return PbUtil.sizeOfLenField(pbIndex, s);
     }
 
     public static boolean encode(EncodeContext c, ByteBuffer destBuffer, int pbIndex, ByteArray o) {
@@ -272,7 +272,7 @@ public class EncodeUtil {
         for (int len = list.size(), i = 0; i < len; i++) {
             Encodable e = list.get(i);
             int s = e == null ? 0 : e.actualSize();
-            size += PbUtil.sizeOfLenFieldPrefix(pbIndex, s) + s;
+            size += PbUtil.sizeOfLenField(pbIndex, s);
         }
         return size;
     }
