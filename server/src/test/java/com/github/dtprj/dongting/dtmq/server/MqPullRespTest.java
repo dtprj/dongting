@@ -81,6 +81,7 @@ class MqPullRespTest {
         assertTrue(resp.records.isEmpty());
 
         byte[] data = DtMq.MqPullResp.newBuilder()
+                .setResultsSize(1)
                 .addResults(detail(11, 0, 0, false))
                 .build().toByteArray();
         resp = decode(data, 1);

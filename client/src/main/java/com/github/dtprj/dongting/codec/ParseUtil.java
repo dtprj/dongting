@@ -27,6 +27,8 @@ import java.util.ArrayList;
  */
 public final class ParseUtil {
 
+    public static final int MAX_COLLECTION_SIZE = 50000;
+
     private static final DtLog log = DtLogs.getLogger(ParseUtil.class);
 
     public static StrEncoder parseStrEncoder(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
@@ -125,19 +127,12 @@ public final class ParseUtil {
         return result;
     }
 
-    private static final int MAX_SUGGESTED_SIZE = 50000;
-
-    /** Returns the suggested size if it is in (0, 50000], otherwise 0. */
-    public static int checkSuggestedSize(int suggestedSize) {
-        if (suggestedSize <= 0 || suggestedSize > MAX_SUGGESTED_SIZE) {
-            log.warn("invalid suggested size: {}", suggestedSize);
-            return 0;
-        }
-        return suggestedSize;
-    }
-
     public static <X> ArrayList<X> createArrayList(int suggestedSize) {
-        return new ArrayList<>(checkSuggestedSize(suggestedSize));
+        if (suggestedSize <= 0 || suggestedSize > MAX_COLLECTION_SIZE) {
+            log.warn("invalid suggested size: {}", suggestedSize);
+            suggestedSize = 0;
+        }
+        return new ArrayList<>(suggestedSize);
     }
 
 }

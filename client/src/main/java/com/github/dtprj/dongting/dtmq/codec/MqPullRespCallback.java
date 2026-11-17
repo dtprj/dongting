@@ -80,6 +80,12 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_RESULTS_SIZE) {
+            if (value < 0 || value > ParseUtil.MAX_COLLECTION_SIZE) {
+                throw new PbException("invalid results size: " + value);
+            }
+            if (resultList != null) {
+                throw new PbException("duplicate or misplaced results size field");
+            }
             declaredResultsSize = (int) value;
         }
     }
@@ -88,10 +94,13 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RESULTS) {
             if (resultList == null) {
-                resultList = ParseUtil.createArrayList(declaredResultsSize > 0 ? declaredResultsSize : 4);
+                resultList = new ArrayList<>(declaredResultsSize);
             }
             MqPullRespDetail result = ParseUtil.parseNested(context, buf, fieldLen, currentPos, resultCallback);
             if (result != null) {
+                if (resultList.size() >= declaredResultsSize) {
+                    throw new PbException("results count exceeds declared size: " + declaredResultsSize);
+                }
                 resultList.add(result);
             }
         } else if (index == IDX_RECORDS) {
@@ -108,6 +117,9 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public MqPullResp getResult(DecodeContext context) {
         int size = resultList == null ? 0 : resultList.size();
+        if (size != declaredResultsSize) {
+            throw new PbException("results count mismatch: declared=" + declaredResultsSize + ", actual=" + size);
+        }
         if (resultList != null) {
             while (resultIndex < size) {
                 if (seqOffset < resultList.get(resultIndex).count) {

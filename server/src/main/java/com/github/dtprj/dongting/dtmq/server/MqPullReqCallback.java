@@ -18,17 +18,15 @@ package com.github.dtprj.dongting.dtmq.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.dtmq.codec.MqPullReq;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 /**
  * @author huangli
  */
 public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqPullReq> {
-    private static final int MIN_CAPACITY = 16;
-
     private final QueueCallback queueCallback = new QueueCallback();
     private int declaredSize;
     private int queueCount;
@@ -40,6 +38,12 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
                 groupId = (int) value;
                 break;
             case MqPullReq.IDX_QUEUES_SIZE:
+                if (value < 0 || value > ParseUtil.MAX_COLLECTION_SIZE) {
+                    throw new PbException("invalid queues size: " + value);
+                }
+                if (queueIds != null) {
+                    throw new PbException("duplicate or misplaced queues size field");
+                }
                 declaredSize = (int) value;
                 break;
             case MqPullReq.IDX_LIMIT:
@@ -60,14 +64,12 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
             return;
         }
         if (currentPos == 0) {
+            if (queueCount >= declaredSize) {
+                throw new PbException("queues count exceeds declared size: " + declaredSize);
+            }
             if (queueIds == null) {
-                int capacity = initialCapacity();
-                queueIds = new long[capacity];
-                fromSeqs = new long[capacity];
-            } else if (queueCount == queueIds.length) {
-                int capacity = (int) Math.min((long) queueCount * 2, Integer.MAX_VALUE - 8);
-                queueIds = Arrays.copyOf(queueIds, capacity);
-                fromSeqs = Arrays.copyOf(fromSeqs, capacity);
+                queueIds = new long[declaredSize];
+                fromSeqs = new long[declaredSize];
             }
         }
         if (ParseUtil.parseNested(context, buf, fieldLen, currentPos, queueCallback) != null) {
@@ -75,18 +77,13 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
         }
     }
 
-    private int initialCapacity() {
-        int capacity = ParseUtil.checkSuggestedSize(declaredSize > 0 ? declaredSize : MIN_CAPACITY);
-        return capacity > 0 ? capacity : MIN_CAPACITY;
-    }
-
     @Override
     public MqPullReq getResult(DecodeContext context) {
+        if (queueCount != declaredSize) {
+            throw new PbException("queues count mismatch: declared=" + declaredSize + ", actual=" + queueCount);
+        }
         if (queueIds == null) {
             queueIds = fromSeqs = new long[0];
-        } else if (queueIds.length != queueCount) {
-            queueIds = Arrays.copyOf(queueIds, queueCount);
-            fromSeqs = Arrays.copyOf(fromSeqs, queueCount);
         }
         return this;
     }
