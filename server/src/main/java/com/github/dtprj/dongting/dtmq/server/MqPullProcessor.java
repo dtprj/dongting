@@ -17,13 +17,14 @@ package com.github.dtprj.dongting.dtmq.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtmq.codec.MqPullReq;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
@@ -46,6 +47,9 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
         return body.groupId;
     }
 
+    /**
+     * run in io thread.
+     */
     @Override
     protected WritePacket doProcess(ReqInfo<MqPullReq> reqInfo) {
         DtMQ mq = MqServerUtil.getStateMachine(reqInfo);
@@ -53,18 +57,41 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
             reqInfo.reqFrame.clean();
             return null;
         }
-        RaftGroupImpl group = (RaftGroupImpl) reqInfo.raftGroup;
+        pullRead(reqInfo, mq, (RaftGroupImpl) reqInfo.raftGroup);
+        return null;
+    }
+
+    // run in io thread, or in raft thread when the group ready future completes
+    private void pullRead(ReqInfo<MqPullReq> reqInfo, DtMQ mq, RaftGroupImpl group) {
+        // the group ready callback may run in io thread if the future is already done
+        Thread t = Thread.currentThread();
+        Timestamp ts = t == group.fiberGroup.thread ? group.raftStatus.ts : ((WorkerThread) t).ts;
+        try {
+            if (!group.isLeaseReadValid(ts, reqInfo.reqContext.getTimeout())) {
+                group.addGroupReadyListener(reqInfo.reqContext.getTimeout()).whenComplete((v, ex) -> {
+                    if (ex == null) {
+                        pullRead(reqInfo, mq, group);
+                    } else {
+                        reqInfo.reqFrame.clean();
+                        writeErrorResp(reqInfo, ex);
+                    }
+                });
+                return;
+            }
+        } catch (Exception e) {
+            reqInfo.reqFrame.clean();
+            writeErrorResp(reqInfo, e);
+            return;
+        }
         if (!group.fiberGroup.fireFiber("mqPull", new PullFrame(reqInfo, mq))) {
             reqInfo.reqFrame.clean();
-            return createStoppedResp(group.groupId);
+            reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(group.groupId));
         }
-        return null;
     }
 
     private final class PullFrame extends FiberFrame<Void> {
         private final ReqInfo<MqPullReq> reqInfo;
         private final DtMQ mq;
-        private MqPullFrame pull;
 
         private PullFrame(ReqInfo<MqPullReq> reqInfo, DtMQ mq) {
             this.reqInfo = reqInfo;
@@ -76,28 +103,15 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
             if (!reqInfo.reqContext.getDtChannel().getChannel().isOpen()) {
                 return Fiber.frameReturn();
             }
-            if (pull == null) {
-                MqPullReq req = reqInfo.reqFrame.getBody();
-                try {
-                    pull = mq.pull(req.queueIds, req.fromSeqs, req.limit, req.bytesLimit,
-                            req.waitMillis, reqInfo.reqContext.getTimeout(), reqInfo.reqContext.getDtChannel());
-                } catch (IllegalArgumentException e) {
-                    reqInfo.reqContext.writeRespInBizThreads(
-                            new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, e.getMessage()));
-                    return Fiber.frameReturn();
-                }
-            }
-            RaftGroupImpl group = (RaftGroupImpl) reqInfo.raftGroup;
-            if (!group.isLeaseReadValid(group.groupComponents.raftStatus.ts, reqInfo.reqContext.getTimeout())) {
-                FiberFuture<Void> ready = getFiberGroup().newFuture("mqPullReady");
-                group.addGroupReadyListener(reqInfo.reqContext.getTimeout()).whenComplete((v, ex) -> {
-                    if (ex == null) {
-                        ready.fireComplete(null);
-                    } else {
-                        ready.fireCompleteExceptionally(ex);
-                    }
-                });
-                return ready.await(this);
+            MqPullFrame pull;
+            MqPullReq req = reqInfo.reqFrame.getBody();
+            try {
+                pull = mq.pull(req.queueIds, req.fromSeqs, req.limit, req.bytesLimit,
+                        req.waitMillis, reqInfo.reqContext.getTimeout(), reqInfo.reqContext.getDtChannel());
+            } catch (IllegalArgumentException e) {
+                reqInfo.reqContext.writeRespInBizThreads(
+                        new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, e.getMessage()));
+                return Fiber.frameReturn();
             }
             return Fiber.call(pull, this::afterPull);
         }
