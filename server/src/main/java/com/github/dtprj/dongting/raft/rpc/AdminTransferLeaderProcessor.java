@@ -72,7 +72,7 @@ public class AdminTransferLeaderProcessor extends RaftProcessor<TransferLeaderRe
     }
 
     @Override
-    protected int getGroupId(ReadPacket<TransferLeaderReq> frame) {
-        return frame.getBody().groupId;
+    protected int getGroupId(TransferLeaderReq body) {
+        return body.groupId;
     }
 }

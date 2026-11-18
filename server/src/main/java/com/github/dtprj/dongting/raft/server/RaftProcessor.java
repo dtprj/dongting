@@ -51,7 +51,10 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
         this.enableReplicatePort = enableReplicatePort;
     }
 
-    protected abstract int getGroupId(ReadPacket<T> frame);
+    /**
+     * body is non-null.
+     */
+    protected abstract int getGroupId(T body);
 
     public static boolean requestServicePort(ReqContext reqContext, RaftServerConfig config) {
         return reqContext.getDtChannel().getLocalPort() == config.servicePort;
@@ -76,7 +79,8 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
      */
     @Override
     public final WritePacket process(ReadPacket<T> packet, ReqContext reqContext) {
-        if (packet.getBody() == null) {
+        T body = packet.getBody();
+        if (body == null) {
             log.warn("request has no body: cmd={}, channel={}", packet.command, reqContext.getDtChannel());
             return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "request has no body");
         }
@@ -95,7 +99,7 @@ public abstract class RaftProcessor<T> extends ReqProcessor<T> {
                 return new EmptyBodyRespPacket(CmdCodes.STOPPING, "raft server shutdown");
             }
         }
-        int groupId = getGroupId(packet);
+        int groupId = getGroupId(body);
         if (groupId <= 0) {
             packet.clean();
             return new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR, "groupId must be positive");

@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -186,7 +185,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     }
 
     @Override
-    protected int getGroupId(ReadPacket<TransferLeaderReq> frame) {
-        return frame.getBody().groupId;
+    protected int getGroupId(TransferLeaderReq body) {
+        return body.groupId;
     }
 }

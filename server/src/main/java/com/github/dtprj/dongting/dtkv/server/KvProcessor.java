@@ -64,8 +64,8 @@ final class KvProcessor extends RaftProcessor<KvReq> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<KvReq> frame) {
-        return frame.getBody().groupId;
+    protected int getGroupId(KvReq body) {
+        return body.groupId;
     }
 
     /**

@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.DtChannel;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.server.RaftProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -44,8 +43,8 @@ final class WatchProcessor extends RaftProcessor<WatchReqCallback> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<WatchReqCallback> frame) {
-        return frame.getBody().groupId;
+    protected int getGroupId(WatchReqCallback body) {
+        return body.groupId;
     }
 
     @Override

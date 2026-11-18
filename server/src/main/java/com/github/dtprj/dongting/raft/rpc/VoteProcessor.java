@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -212,8 +211,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<VoteReq> frame) {
-        return frame.getBody().groupId;
+    protected int getGroupId(VoteReq body) {
+        return body.groupId;
     }
 }
 

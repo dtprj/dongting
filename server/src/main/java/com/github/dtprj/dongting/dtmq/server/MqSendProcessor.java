@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
@@ -39,8 +38,8 @@ final class MqSendProcessor extends RaftProcessor<MqSendReqCallback> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<MqSendReqCallback> packet) {
-        return packet.getBody().groupId;
+    protected int getGroupId(MqSendReqCallback body) {
+        return body.groupId;
     }
 
     @Override

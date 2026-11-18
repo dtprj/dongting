@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -44,8 +43,8 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<Integer> frame) {
-        return frame.getBody();
+    protected int getGroupId(Integer body) {
+        return body;
     }
 
     @Override

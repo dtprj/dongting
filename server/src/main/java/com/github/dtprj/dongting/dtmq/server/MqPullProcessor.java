@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
@@ -43,8 +42,8 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<MqPullReq> packet) {
-        return packet.getBody().groupId;
+    protected int getGroupId(MqPullReq body) {
+        return body.groupId;
     }
 
     @Override

@@ -29,10 +29,10 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
 import com.github.dtprj.dongting.net.WorkerThread;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftRpcData;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -81,13 +81,8 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<Object> frame) {
-        Object body = frame.getBody();
-        if (frame.command == Commands.RAFT_APPEND_ENTRIES) {
-            return ((AppendReq) body).groupId;
-        } else {
-            return ((InstallSnapshotReq) body).groupId;
-        }
+    protected int getGroupId(Object body) {
+        return ((RaftRpcData) body).groupId;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

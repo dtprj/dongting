@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.dtkv.KvStatusResp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EncodableBodyWritePacket;
-import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
@@ -45,8 +44,8 @@ class KvStatusProcessor extends RaftSequenceProcessor<Integer> {
     }
 
     @Override
-    protected int getGroupId(ReadPacket<Integer> frame) {
-        return frame.getBody();
+    protected int getGroupId(Integer body) {
+        return body;
     }
 
     @Override
