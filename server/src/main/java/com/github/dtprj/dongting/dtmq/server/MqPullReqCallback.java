@@ -27,11 +27,14 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqPullReq> {
-    private final QueueCallback queueCallback = new QueueCallback();
     private int queueCount;
+    private boolean parsingNested;
 
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
+        if (parsingNested) {
+            return;
+        }
         switch (index) {
             case MqPullReq.IDX_GROUP_ID:
                 groupId = (int) value;
@@ -59,7 +62,23 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
     }
 
     @Override
+    public void readFix64(DecodeContext context, int index, long value) {
+        if (!parsingNested) {
+            return;
+        }
+        if (index == MqPullReq.IDX_DETAIL_QUEUE_ID) {
+            queueIds[queueCount] = value;
+        } else if (index == MqPullReq.IDX_DETAIL_FROM_SEQ) {
+            fromSeqs[queueCount] = value;
+        }
+    }
+
+    @Override
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
+        if (parsingNested && currentPos == 0) {
+            // An untouched first chunk makes PbParser skip the whole unknown nested field.
+            return;
+        }
         if (index != MqPullReq.IDX_QUEUES) {
             return;
         }
@@ -70,14 +89,19 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
             if (queueCount >= queueIds.length) {
                 throw new PbException("queues count exceeds declared size: " + queueIds.length);
             }
+            parsingNested = true;
         }
-        if (ParseUtil.parseNested(context, buf, fieldLen, currentPos, queueCallback) != null) {
+        if (ParseUtil.parseNested(context, buf, fieldLen, currentPos, this) != null) {
             queueCount++;
+            parsingNested = false;
         }
     }
 
     @Override
     public MqPullReq getResult(DecodeContext context) {
+        if (parsingNested) {
+            return this;
+        }
         if (queueIds == null) {
             throw new PbException("queues size field missing");
         }
@@ -85,32 +109,5 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
             throw new PbException("queues count mismatch: declared=" + queueIds.length + ", actual=" + queueCount);
         }
         return this;
-    }
-
-    private final class QueueCallback implements PbCallback<Boolean> {
-        private long queueId;
-        private long fromSeq;
-
-        @Override
-        public void begin(int len) {
-            queueId = 0;
-            fromSeq = 0;
-        }
-
-        @Override
-        public void readFix64(DecodeContext context, int index, long value) {
-            if (index == MqPullReq.IDX_DETAIL_QUEUE_ID) {
-                queueId = value;
-            } else if (index == MqPullReq.IDX_DETAIL_FROM_SEQ) {
-                fromSeq = value;
-            }
-        }
-
-        @Override
-        public Boolean getResult(DecodeContext context) {
-            queueIds[queueCount] = queueId;
-            fromSeqs[queueCount] = fromSeq;
-            return Boolean.TRUE;
-        }
     }
 }
