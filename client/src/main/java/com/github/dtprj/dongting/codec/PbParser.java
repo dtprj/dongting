@@ -95,6 +95,11 @@ public class PbParser {
         return status == STATUS_END || status == STATUS_END_SKIP;
     }
 
+    /**
+     * Parses available input and retains unfinished state for the next call.
+     *
+     * @return the callback result on completion, or null if more input is required
+     */
     public Object parse(ByteBuffer buf) {
         if (status == STATUS_END || status == STATUS_END_SKIP) {
             throw new PbException("parser is finished");

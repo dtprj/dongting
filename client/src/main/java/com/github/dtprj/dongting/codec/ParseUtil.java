@@ -31,11 +31,17 @@ public final class ParseUtil {
 
     private static final DtLog log = DtLogs.getLogger(ParseUtil.class);
 
+    /**
+     * @return the string encoder on completion, or null if more input is required
+     */
     public static StrEncoder parseStrEncoder(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         String s = parseUTF8(context, buf, fieldLen, currentPos);
         return s == null ? null : new StrEncoder(s);
     }
 
+    /**
+     * @return the decoded string on completion, or null if more input is required
+     */
     public static String parseUTF8(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
             return "";
@@ -46,11 +52,17 @@ public final class ParseUtil {
         return parseNested(context, buf, fieldLen, currentPos, context.strDecoderCallback());
     }
 
+    /**
+     * @return the byte array wrapper on completion, or null if more input is required
+     */
     public static ByteArray parseByteArray(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         byte[] arr = parseBytes(context, buf, fieldLen, currentPos);
         return arr == null ? null : new ByteArray(arr);
     }
 
+    /**
+     * @return the decoded bytes on completion, or null if more input is required
+     */
     public static byte[] parseBytes(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos) {
         if (fieldLen == 0) {
             return new byte[0];
@@ -73,6 +85,11 @@ public final class ParseUtil {
         }
     }
 
+    /**
+     * Starts nested decoding when currentPos is 0 and resumes it on later chunks.
+     *
+     * @return the nested result on completion, or null if more input is required
+     */
     @SuppressWarnings("unchecked")
     public static <X> X parseNested(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos,
                                       PbCallback<X> nestedCallback) {
@@ -100,6 +117,11 @@ public final class ParseUtil {
         return result;
     }
 
+    /**
+     * Starts nested decoding when currentPos is 0 and resumes it on later chunks.
+     *
+     * @return the nested result on completion, or null if more input is required
+     */
     @SuppressWarnings("unchecked")
     public static <X> X parseNested(DecodeContext context, ByteBuffer buf, int fieldLen, int currentPos,
                                       DecoderCallback<X> nestedCallback) {
@@ -127,6 +149,9 @@ public final class ParseUtil {
         return result;
     }
 
+    /**
+     * Creates a list with the suggested capacity, replacing an invalid size with zero.
+     */
     public static <X> ArrayList<X> createArrayList(int suggestedSize) {
         if (suggestedSize <= 0 || suggestedSize > MAX_COLLECTION_SIZE) {
             log.warn("invalid suggested size: {}", suggestedSize);

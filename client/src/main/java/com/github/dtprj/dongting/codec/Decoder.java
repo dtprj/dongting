@@ -67,6 +67,11 @@ public class Decoder {
         this.endCalled = false;
     }
 
+    /**
+     * Decodes available input and retains unfinished state for the next call.
+     *
+     * @return the callback result on completion, or null if more input is required
+     */
     public final Object decode(ByteBuffer buffer, int bodyLen, int currentPos) {
         if (endCalled) {
             throw new CodecException("decode finished");
