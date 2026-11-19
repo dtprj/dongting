@@ -54,7 +54,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     private final ResultCallback resultCallback = new ResultCallback();
 
-    private int declaredResultsSize;
     // current result group and number of records already decoded in it
     private int resultIndex;
     private int seqOffset;
@@ -84,7 +83,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             if (results != null) {
                 throw new PbException("duplicate or misplaced results size field");
             }
-            declaredResultsSize = (int) value;
+            results = new ArrayList<>((int) value);
         }
     }
 
@@ -92,13 +91,10 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RESULTS) {
             if (results == null) {
-                results = new ArrayList<>(declaredResultsSize);
+                results = new ArrayList<>();
             }
             MqPullRespDetail result = ParseUtil.parseNested(context, buf, fieldLen, currentPos, resultCallback);
             if (result != null) {
-                if (results.size() >= declaredResultsSize) {
-                    throw new PbException("results count exceeds declared size: " + declaredResultsSize);
-                }
                 results.add(result);
             }
         } else if (index == IDX_RECORDS) {
@@ -114,11 +110,8 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     @Override
     public MqPullResp getResult(DecodeContext context) {
-        int size = results == null ? 0 : results.size();
-        if (size != declaredResultsSize) {
-            throw new PbException("results count mismatch: declared=" + declaredResultsSize + ", actual=" + size);
-        }
         if (results != null) {
+            int size = results.size();
             while (resultIndex < size) {
                 if (seqOffset < results.get(resultIndex).count) {
                     break;
