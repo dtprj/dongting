@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -37,6 +38,7 @@ public class AdminListNodesResp implements PbCallback<AdminListNodesResp>, Encod
 
     public List<RaftNode> nodes;
     private PbCallback<RaftNode> nodeCallback;
+    private int nodesSize = -1;
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
@@ -67,13 +69,19 @@ public class AdminListNodesResp implements PbCallback<AdminListNodesResp>, Encod
 
     @Override
     public AdminListNodesResp getResult(DecodeContext context) {
+        if (nodes == null) {
+            nodes = Collections.emptyList();
+        } else {
+            ParseUtil.checkCountMatch(nodesSize, nodes.size(), "nodes");
+        }
         return this;
     }
 
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_SIZE && nodes == null) {
-            nodes = ParseUtil.createArrayList((int) value);
+            nodesSize = (int) value;
+            nodes = ParseUtil.createArrayList(nodesSize);
         }
     }
 
@@ -83,9 +91,7 @@ public class AdminListNodesResp implements PbCallback<AdminListNodesResp>, Encod
             if (nodeCallback == null) {
                 nodeCallback = new RaftNode.Callback();
             }
-            if (nodes == null) {
-                nodes = ParseUtil.createArrayList(8);
-            }
+            ParseUtil.checkSizeBefore(nodes, "node");
             RaftNode r = ParseUtil.parseNested(context, buf, fieldLen, currentPos, nodeCallback);
             if (r != null) {
                 nodes.add(r);

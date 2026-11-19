@@ -157,4 +157,37 @@ public final class ParseUtil {
         return new ArrayList<>(suggestedSize);
     }
 
+    /**
+     * Ensures the size field has been encoded before the element fields of the given name.
+     *
+     * @throws PbException if the collection is null, i.e. the size field is missing
+     */
+    public static void checkSizeBefore(Object collection, String field) {
+        if (collection == null) {
+            throw new PbException("size must be encoded before " + field);
+        }
+    }
+
+    /**
+     * Ensures the next array write stays within the declared size.
+     *
+     * @throws PbException if the index reaches the declared size
+     */
+    public static void checkIndexInArray(int index, int len, String field) {
+        if (index >= len) {
+            throw new PbException(field + " count exceeds declared size: " + len);
+        }
+    }
+
+    /**
+     * Ensures the actual element count matches the size declared by the size field.
+     *
+     * @throws PbException if the counts differ
+     */
+    public static void checkCountMatch(int declared, int actual, String field) {
+        if (declared != actual) {
+            throw new PbException(field + " count mismatch: declared=" + declared + ", actual=" + actual);
+        }
+    }
+
 }

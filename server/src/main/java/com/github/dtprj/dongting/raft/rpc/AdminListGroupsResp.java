@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.EncodeUtil;
@@ -38,26 +39,26 @@ public class AdminListGroupsResp implements PbCallback<AdminListGroupsResp>, Enc
 
     @Override
     public AdminListGroupsResp getResult(DecodeContext context) {
+        if (groupIds == null) {
+            groupIds = new int[0];
+        } else {
+            ParseUtil.checkCountMatch(groupIds.length, writePos, "group_ids");
+        }
         return this;
     }
 
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
-        if (index == IDX_SIZE) {
+        if (index == IDX_SIZE && groupIds == null) {
             int len = (int) value;
-            if (len < 0 || len > 1000000) {
+            if (len < 0 || len > ParseUtil.MAX_COLLECTION_SIZE) {
                 throw new CodecException("invalid group size: " + len);
             }
             groupIds = new int[len];
         } else if (index == IDX_GROUP_ID) {
-            if (groupIds == null) {
-                throw new CodecException("group_id field found before size field");
-            }
-            if (writePos < groupIds.length) {
-                groupIds[writePos++] = (int) value;
-            } else {
-                throw new CodecException("group_id exceed size " + groupIds.length);
-            }
+            ParseUtil.checkSizeBefore(groupIds, "group_id");
+            ParseUtil.checkIndexInArray(writePos, groupIds.length, "group_id");
+            groupIds[writePos++] = (int) value;
         }
     }
 

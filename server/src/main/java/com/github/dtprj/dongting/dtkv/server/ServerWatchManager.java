@@ -16,7 +16,9 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Pair;
@@ -36,7 +38,6 @@ import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.SimpleWritePacket;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftServerEventPush;
 
 import java.util.ArrayList;
@@ -757,6 +758,7 @@ final class WatchNotifyRespCallback implements PbCallback<WatchNotifyRespCallbac
 
     @Override
     public WatchNotifyRespCallback getResult(DecodeContext context) {
+        ParseUtil.checkCountMatch(results.length, nextWriteIndex, "results");
         return this;
     }
 
@@ -764,7 +766,7 @@ final class WatchNotifyRespCallback implements PbCallback<WatchNotifyRespCallbac
     public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_RESULTS) {
             if (nextWriteIndex >= results.length) {
-                throw new RaftException("response results size exceed " + results.length);
+                throw new PbException("response results size exceed " + results.length);
             }
             results[nextWriteIndex] = (int) value;
             nextWriteIndex++;

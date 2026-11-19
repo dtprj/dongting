@@ -89,6 +89,7 @@ public class WatchNotifyReq implements Encodable {
     public static class Callback implements PbCallback<WatchNotifyReq> {
         private int groupId;
         private int nodeId;
+        private int listSize = -1;
         private ArrayList<WatchNotify> notifyList;
         private final WatchNotify.Callback notifyCallback = new WatchNotify.Callback();
 
@@ -100,7 +101,8 @@ public class WatchNotifyReq implements Encodable {
                 nodeId = (int) value;
             } else if (index == IDX_LIST_SIZE) {
                 if (notifyList == null) {
-                    notifyList = ParseUtil.createArrayList((int) value);
+                    listSize = (int) value;
+                    notifyList = ParseUtil.createArrayList(listSize);
                 }
             }
         }
@@ -108,11 +110,9 @@ public class WatchNotifyReq implements Encodable {
         @Override
         public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_NOTIFY_LIST) {
+                ParseUtil.checkSizeBefore(notifyList, "notify list");
                 WatchNotify wn = ParseUtil.parseNested(context, buf, fieldLen, currentPos, notifyCallback);
                 if (wn != null) {
-                    if (notifyList == null) {
-                        notifyList = new ArrayList<>();
-                    }
                     notifyList.add(wn);
                 }
             }
@@ -120,7 +120,11 @@ public class WatchNotifyReq implements Encodable {
 
         @Override
         public WatchNotifyReq getResult(DecodeContext context) {
-            return new WatchNotifyReq(groupId, nodeId, notifyList == null ? Collections.emptyList() : notifyList);
+            if (notifyList == null) {
+                return new WatchNotifyReq(groupId, nodeId, Collections.emptyList());
+            }
+            ParseUtil.checkCountMatch(listSize, notifyList.size(), "notify list");
+            return new WatchNotifyReq(groupId, nodeId, notifyList);
         }
     }
 }

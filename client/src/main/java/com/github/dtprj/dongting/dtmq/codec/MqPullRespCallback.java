@@ -57,6 +57,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     // current result group and number of records already decoded in it
     private int resultIndex;
     private int seqOffset;
+    private int declaredResultsSize = -1;
 
     private int recordState = STATE_HEAD;
     private byte[] fixedBuf;
@@ -76,10 +77,8 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
-        if (index == IDX_RESULTS_SIZE) {
-            if (results != null) {
-                throw new PbException("duplicate or misplaced results size field");
-            }
+        if (index == IDX_RESULTS_SIZE && results == null) {
+            declaredResultsSize = (int) value;
             results = ParseUtil.createArrayList((int) value);
         }
     }
@@ -87,9 +86,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RESULTS) {
-            if (results == null) {
-                results = new ArrayList<>();
-            }
+            ParseUtil.checkSizeBefore(results, "results");
             MqPullRespDetail result = ParseUtil.parseNested(context, buf, fieldLen, currentPos, resultCallback);
             if (result != null) {
                 results.add(result);
@@ -108,6 +105,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public MqPullResp getResult(DecodeContext context) {
         if (results != null) {
+            ParseUtil.checkCountMatch(declaredResultsSize, results.size(), "results");
             int size = results.size();
             while (resultIndex < size) {
                 if (seqOffset < results.get(resultIndex).count) {

@@ -40,14 +40,13 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
                 groupId = (int) value;
                 break;
             case MqPullReq.IDX_QUEUES_SIZE:
-                if (value <= 0 || value > ParseUtil.MAX_COLLECTION_SIZE) {
-                    throw new PbException("invalid queues size: " + value);
+                if (queueIds == null) {
+                    if (value <= 0 || value > ParseUtil.MAX_COLLECTION_SIZE) {
+                        throw new PbException("invalid queues size: " + value);
+                    }
+                    queueIds = new long[(int) value];
+                    fromSeqs = new long[queueIds.length];
                 }
-                if (queueIds != null) {
-                    throw new PbException("duplicate or misplaced queues size field");
-                }
-                queueIds = new long[(int) value];
-                fromSeqs = new long[queueIds.length];
                 break;
             case MqPullReq.IDX_LIMIT:
                 limit = (int) value;
@@ -83,12 +82,8 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
             return;
         }
         if (currentPos == 0) {
-            if (queueIds == null) {
-                throw new PbException("queues field before queues size");
-            }
-            if (queueCount >= queueIds.length) {
-                throw new PbException("queues count exceeds declared size: " + queueIds.length);
-            }
+            ParseUtil.checkSizeBefore(queueIds, "queues");
+            ParseUtil.checkIndexInArray(queueCount, queueIds.length, "queues");
             parsingNested = true;
         }
         if (ParseUtil.parseNested(context, buf, fieldLen, currentPos, this) != null) {
@@ -105,9 +100,7 @@ public final class MqPullReqCallback extends MqPullReq implements PbCallback<MqP
         if (queueIds == null) {
             throw new PbException("queues size field missing");
         }
-        if (queueCount != queueIds.length) {
-            throw new PbException("queues count mismatch: declared=" + queueIds.length + ", actual=" + queueCount);
-        }
+        ParseUtil.checkCountMatch(queueIds.length, queueCount, "queues");
         return this;
     }
 }

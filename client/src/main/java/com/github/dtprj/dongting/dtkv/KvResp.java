@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -81,22 +82,21 @@ public class KvResp implements Encodable {
         private final KvResult.Callback resultCallback = new KvResult.Callback();
 
         private long raftIndex;
-        private int resultsSize;
+        private int resultsSize = -1;
         private ArrayList<KvResult> results;
 
         @Override
         public void readVarNumber(DecodeContext context, int index, long value) {
-            if (index == IDX_RESULTS_SIZE) {
+            if (index == IDX_RESULTS_SIZE && results == null) {
                 resultsSize = (int) value;
+                results = ParseUtil.createArrayList(resultsSize);
             }
         }
 
         @Override
         public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == IDX_RESULTS) {
-                if (results == null) {
-                    results = ParseUtil.createArrayList(resultsSize);
-                }
+                ParseUtil.checkSizeBefore(results, "results");
                 KvResult r = ParseUtil.parseNested(context, buf, fieldLen, currentPos, resultCallback);
                 if (r != null) {
                     results.add(r);
@@ -113,7 +113,10 @@ public class KvResp implements Encodable {
 
         @Override
         public KvResp getResult(DecodeContext context) {
-            return new KvResp(raftIndex, results);
+            if (results != null) {
+                ParseUtil.checkCountMatch(resultsSize, results.size(), "results");
+            }
+            return new KvResp(raftIndex, results == null ? Collections.emptyList() : results);
         }
     }
 

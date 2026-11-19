@@ -322,7 +322,7 @@ public class KvClient extends AbstractLifeCircle {
 
     private static KvNode mapToKvNode(ReadPacket<KvResp> p) {
         KvResp resp = p.getBody();
-        if (resp == null || resp.results == null || resp.results.isEmpty()) {
+        if (resp == null || resp.results.isEmpty()) {
             return null;
         } else {
             return resp.results.get(0).getNode();
@@ -360,7 +360,7 @@ public class KvClient extends AbstractLifeCircle {
 
     private static List<KvResult> mapToKvResultList(ReadPacket<KvResp> p) {
         KvResp resp = p.getBody();
-        if (resp == null || resp.results == null) {
+        if (resp == null) {
             return Collections.emptyList();
         } else {
             return resp.results;
@@ -554,7 +554,7 @@ public class KvClient extends AbstractLifeCircle {
 
     private static List<KvNode> mapToKvNodeList(ReadPacket<KvResp> p) {
         KvResp kvResp = p.getBody();
-        if (kvResp == null || kvResp.results == null) {
+        if (kvResp == null) {
             return Collections.emptyList();
         } else {
             return kvResp.results.stream().map(KvResult::getNode).collect(Collectors.toList());

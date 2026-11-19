@@ -75,6 +75,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         // biz header/body are decoded in AppendProcessor.preProcess()
         // created lazily: heartbeats without entries don't pay for it
         private RaftLogDataCallback logDataCallback;
+        private int logsSize = -1;
 
         @Override
         public void end(boolean success, Throwable ex) {
@@ -101,6 +102,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
                     break;
                 case IDX_LOGS_SIZE:
                     if (logs == null) {
+                        logsSize = (int) value;
                         logs = ParseUtil.createArrayList((int) value);
                     }
                     break;
@@ -129,9 +131,7 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
         @Override
         public void readBytes(DecodeContext context, int index, ByteBuffer buf, int len, int currentPos) {
             if (index == IDX_ENTRIES) {
-                if (logs == null) {
-                    logs = ParseUtil.createArrayList(8);
-                }
+                ParseUtil.checkSizeBefore(logs, "entries");
                 if (logDataCallback == null) {
                     logDataCallback = new RaftLogDataCallback(logs);
                 }
@@ -141,6 +141,9 @@ public class AppendReq extends RaftRpcData implements DtCleanable {
 
         @Override
         public AppendReq getResult(DecodeContext context) {
+            if (logsSize >= 0) {
+                ParseUtil.checkCountMatch(logsSize, logs.size(), "entries");
+            }
             return this;
         }
     }

@@ -51,7 +51,7 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
     public List<RaftTask> logs;
 
     private int headerSize;
-    private int bodySize;
+    private int entriesBodySize;
 
     private static final int WRITE_HEADER = 0;
     private static final int WRITE_BODY = 1;
@@ -78,7 +78,7 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
                 // assert itemSize > 0
                 RaftTask item = logs.get(i);
                 RaftReqData rrd = item.reqData;
-                bodySize += rrd.totalLen;
+                entriesBodySize += rrd.totalLen;
                 if (rrd.totalLen >= RaftServerConfig.GATHERING_WRITE_THRESHOLD) {
                     totalPreEncodedSize += rrd.totalLen;
                 }
@@ -86,9 +86,11 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
         }
 
         // the header include len field of IDX_ENTRIES
-        headerSize += PbUtil.sizeOfLenFieldPrefix(AppendReq.IDX_ENTRIES, bodySize);
+        if (entriesBodySize > 0) {
+            headerSize += PbUtil.sizeOfLenFieldPrefix(AppendReq.IDX_ENTRIES, entriesBodySize);
+        }
 
-        return headerSize + bodySize;
+        return headerSize + entriesBodySize;
     }
 
     @Override
@@ -106,7 +108,9 @@ public class AppendReqWritePacket extends PreEncodedWritePacket {
                 PbUtil.writeFix64Field(dest, AppendReq.IDX_LEADER_COMMIT, leaderCommit);
                 PbUtil.writeInt32Field(dest, AppendReq.IDX_LOGS_SIZE, logs == null ? 0 : logs.size());
                 PbUtil.writeFix32Field(dest, AppendReq.IDX_RAFT_CLUSTER_ID, raftClusterId);
-                PbUtil.writeLenFieldPrefix(dest, AppendReq.IDX_ENTRIES, bodySize);
+                if (entriesBodySize > 0) {
+                    PbUtil.writeLenFieldPrefix(dest, AppendReq.IDX_ENTRIES, entriesBodySize);
+                }
                 writeStatus = WRITE_BODY;
                 // fall through
             case WRITE_BODY:

@@ -59,6 +59,9 @@ public class KvReq extends RaftRpcData implements Encodable {
     }
 
     public void checkKeysAndValues() {
+        if (values != null && keys == null) {
+            throw new IllegalArgumentException("values requires keys");
+        }
         if (keys != null && values != null) {
             if (keys.size() != values.size()) {
                 throw new IllegalArgumentException("keys and values size mismatch");
@@ -174,7 +177,7 @@ public class KvReq extends RaftRpcData implements Encodable {
      */
     public static class KvReqCallback extends KvReq implements PbCallback<KvReq> {
 
-        private int keysSize;
+        private int keysSize = -1;
         private long uuid1;
         private long uuid2;
 
@@ -188,7 +191,10 @@ public class KvReq extends RaftRpcData implements Encodable {
                     ttlMillis = value;
                     break;
                 case IDX_KEYS_SIZE:
-                    keysSize = (int) value;
+                    if (keys == null) {
+                        keysSize = (int) value;
+                        keys = ParseUtil.createArrayList(keysSize);
+                    }
                     break;
             }
         }
@@ -203,9 +209,7 @@ public class KvReq extends RaftRpcData implements Encodable {
                     value = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     break;
                 case IDX_KEYS:
-                    if (keys == null) {
-                        keys = ParseUtil.createArrayList(keysSize);
-                    }
+                    ParseUtil.checkSizeBefore(keys, "keys");
                     byte[] k = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     if (k != null) {
                         keys.add(k);
@@ -213,7 +217,8 @@ public class KvReq extends RaftRpcData implements Encodable {
                     break;
                 case IDX_VALUES:
                     if (values == null) {
-                        values = ParseUtil.createArrayList(keysSize);
+                        ParseUtil.checkSizeBefore(keys, "values");
+                        values = ParseUtil.createArrayList(keys.size());
                     }
                     byte[] v = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
                     if (v != null) {
@@ -240,6 +245,9 @@ public class KvReq extends RaftRpcData implements Encodable {
 
         @Override
         public KvReq getResult(DecodeContext context) {
+            if (keys != null) {
+                ParseUtil.checkCountMatch(keysSize, keys.size(), "keys");
+            }
             checkKeysAndValues();
             if (uuid1 != 0 && uuid2 != 0) {
                 ownerUuid = new UUID(uuid1, uuid2);

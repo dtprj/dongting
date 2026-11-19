@@ -15,13 +15,12 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.CodecException;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.dtkv.WatchReq;
-import com.github.dtprj.dongting.raft.RaftException;
 
 import java.nio.ByteBuffer;
 
@@ -47,15 +46,14 @@ public class WatchReqCallback implements PbCallback<WatchReqCallback> {
                 this.syncAll = value != 0;
                 break;
             case WatchReq.IDX_KEYS_SIZE:
-                if (knownRaftIndexes != null) {
-                    throw new CodecException("duplicate keys_size field: " + value);
+                if (knownRaftIndexes == null) {
+                    int len = (int) value;
+                    if (len < 0 || len > WatchReq.MAX_SYNC_KEYS) {
+                        throw new PbException("invalid key size: " + len);
+                    }
+                    this.knownRaftIndexes = new long[len];
+                    this.keys = new ByteArray[len];
                 }
-                int len = (int) value;
-                if (len < 0 || len > WatchReq.MAX_SYNC_KEYS) {
-                    throw new RaftException("Invalid key size: " + len);
-                }
-                this.knownRaftIndexes = new long[len];
-                this.keys = new ByteArray[len];
                 break;
         }
     }
@@ -63,7 +61,8 @@ public class WatchReqCallback implements PbCallback<WatchReqCallback> {
     @Override
     public void readFix64(DecodeContext context, int index, long value) {
         if (index == WatchReq.IDX_KNOWN_RAFT_INDEXES) {
-            // not handled NPE/ArrayIndexOutOfBoundsException, require client keep field sequence
+            ParseUtil.checkSizeBefore(knownRaftIndexes, "known raft indexes");
+            ParseUtil.checkIndexInArray(knownRaftIndexesIndex, knownRaftIndexes.length, "known raft indexes");
             knownRaftIndexes[knownRaftIndexesIndex++] = value;
         }
     }
@@ -71,9 +70,10 @@ public class WatchReqCallback implements PbCallback<WatchReqCallback> {
     @Override
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == WatchReq.IDX_KEYS) {
+            ParseUtil.checkSizeBefore(keys, "keys");
+            ParseUtil.checkIndexInArray(keysIndex, keys.length, "keys");
             byte[] b = ParseUtil.parseBytes(context, buf, fieldLen, currentPos);
             if (b != null) {
-                // not handled NPE/ArrayIndexOutOfBoundsException, require client keep field sequence
                 this.keys[keysIndex++] = new ByteArray(b);
             }
         }
@@ -81,6 +81,10 @@ public class WatchReqCallback implements PbCallback<WatchReqCallback> {
 
     @Override
     public WatchReqCallback getResult(DecodeContext context) {
+        if (keys != null) {
+            ParseUtil.checkCountMatch(keys.length, keysIndex, "keys");
+            ParseUtil.checkCountMatch(knownRaftIndexes.length, knownRaftIndexesIndex, "known raft indexes");
+        }
         return this;
     }
 }
