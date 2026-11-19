@@ -44,13 +44,13 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     private static final byte[] EMPTY_BYTES = new byte[0];
 
-    private static final int REC_HEAD = 0;
-    private static final int REC_FIXED = 1;
-    private static final int REC_FIXED_CRC = 2;
-    private static final int REC_HEADER = 3;
-    private static final int REC_HEADER_CRC = 4;
-    private static final int REC_BODY = 5;
-    private static final int REC_BODY_CRC = 6;
+    private static final int STATE_HEAD = 0;
+    private static final int STATE_FIXED = 1;
+    private static final int STATE_FIXED_CRC = 2;
+    private static final int STATE_HEADER = 3;
+    private static final int STATE_HEADER_CRC = 4;
+    private static final int STATE_BODY = 5;
+    private static final int STATE_BODY_CRC = 6;
 
     private final ResultCallback resultCallback = new ResultCallback();
 
@@ -61,7 +61,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     private int resultIndex;
     private int seqOffset;
 
-    private int recordState = REC_HEAD;
+    private int recordState = STATE_HEAD;
     private byte[] fixedBuf;
     private int fixedPos;
     private int fixedHeaderLen;
@@ -132,7 +132,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
                 throw new PbException("records not complete: result=" + resultIndex + ", seqOffset=" + seqOffset);
             }
         }
-        if (recordState != REC_HEAD || fixedPos != 0) {
+        if (recordState != STATE_HEAD || fixedPos != 0) {
             throw new PbException("truncated record");
         }
         results = resultList == null ? Collections.emptyList() : resultList;
@@ -143,32 +143,32 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     private void parseRecords(ByteBuffer src) {
         while (src.hasRemaining()) {
             switch (recordState) {
-                case REC_HEAD:
+                case STATE_HEAD:
                     if (!readRecordHead(src)) {
                         return;
                     }
-                    if (recordState != REC_FIXED) {
+                    if (recordState != STATE_FIXED) {
                         break;
                     }
                     // fall through
-                case REC_FIXED:
+                case STATE_FIXED:
                     if (!readFixedHeader(src)) {
                         return;
                     }
                     // fall through
-                case REC_FIXED_CRC:
-                case REC_HEADER_CRC:
-                case REC_BODY_CRC:
+                case STATE_FIXED_CRC:
+                case STATE_HEADER_CRC:
+                case STATE_BODY_CRC:
                     if (!skipCrc(src)) {
                         return;
                     }
                     break;
-                case REC_HEADER:
+                case STATE_HEADER:
                     if (!readHeader(src)) {
                         return;
                     }
                     break;
-                case REC_BODY:
+                case STATE_BODY:
                     if (!readBody(src)) {
                         return;
                     }
@@ -202,7 +202,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             }
             src.get(fixedBuf, 0, REC_HEAD_LEN);
             fixedPos = REC_HEAD_LEN;
-            recordState = REC_FIXED;
+            recordState = STATE_FIXED;
             return true;
         }
         if (fixedBuf == null) {
@@ -218,7 +218,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (fixedBuf.length < fixedHeaderLen) {
             fixedBuf = Arrays.copyOf(fixedBuf, fixedHeaderLen);
         }
-        recordState = REC_FIXED;
+        recordState = STATE_FIXED;
         return true;
     }
 
@@ -248,7 +248,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         timestamp = getLong(fixedBuf, OFFSET_TIMESTAMP) & 0xFFFF_FFFF_FFFFL;
         queueId = getLong(fixedBuf, OFFSET_BIZ_KEY);
         initPayload();
-        recordState = REC_FIXED_CRC;
+        recordState = STATE_FIXED_CRC;
         skip = CRC_LEN;
         return true;
     }
@@ -262,9 +262,9 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     private void nextPayloadState() {
         if (bizHeaderLen > 0) {
-            recordState = REC_HEADER;
+            recordState = STATE_HEADER;
         } else {
-            recordState = REC_BODY;
+            recordState = STATE_BODY;
         }
     }
 
@@ -275,10 +275,10 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (skip > 0) {
             return false;
         }
-        if (recordState == REC_FIXED_CRC) {
+        if (recordState == STATE_FIXED_CRC) {
             nextPayloadState();
-        } else if (recordState == REC_HEADER_CRC) {
-            recordState = REC_BODY;
+        } else if (recordState == STATE_HEADER_CRC) {
+            recordState = STATE_BODY;
         } else {
             finishRecord();
         }
@@ -292,7 +292,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (headerPos < bizHeaderLen) {
             return false;
         }
-        recordState = REC_HEADER_CRC;
+        recordState = STATE_HEADER_CRC;
         skip = CRC_LEN;
         return true;
     }
@@ -304,7 +304,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (bodyPos < bodyLen) {
             return false;
         }
-        recordState = REC_BODY_CRC;
+        recordState = STATE_BODY_CRC;
         skip = CRC_LEN;
         return true;
     }
@@ -336,7 +336,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         recordList.add(new DtMsg(queueId, header, body, timestamp, result.fromSeq + seqOffset));
         seqOffset++;
 
-        recordState = REC_HEAD;
+        recordState = STATE_HEAD;
         fixedPos = 0;
         fixedHeaderLen = 0;
         bizHeaderLen = 0;
