@@ -55,8 +55,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     private final ResultCallback resultCallback = new ResultCallback();
 
     private int declaredResultsSize;
-    private ArrayList<MqPullRespDetail> resultList;
-    private ArrayList<DtMsg> recordList;
     // current result group and number of records already decoded in it
     private int resultIndex;
     private int seqOffset;
@@ -83,7 +81,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             if (value < 0 || value > ParseUtil.MAX_COLLECTION_SIZE) {
                 throw new PbException("invalid results size: " + value);
             }
-            if (resultList != null) {
+            if (results != null) {
                 throw new PbException("duplicate or misplaced results size field");
             }
             declaredResultsSize = (int) value;
@@ -93,18 +91,18 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public void readBytes(DecodeContext context, int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (index == IDX_RESULTS) {
-            if (resultList == null) {
-                resultList = new ArrayList<>(declaredResultsSize);
+            if (results == null) {
+                results = new ArrayList<>(declaredResultsSize);
             }
             MqPullRespDetail result = ParseUtil.parseNested(context, buf, fieldLen, currentPos, resultCallback);
             if (result != null) {
-                if (resultList.size() >= declaredResultsSize) {
+                if (results.size() >= declaredResultsSize) {
                     throw new PbException("results count exceeds declared size: " + declaredResultsSize);
                 }
-                resultList.add(result);
+                results.add(result);
             }
         } else if (index == IDX_RECORDS) {
-            if (resultList == null) {
+            if (results == null) {
                 throw new PbException("results must be encoded before records");
             }
             recordsFieldLen = fieldLen;
@@ -116,13 +114,13 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
 
     @Override
     public MqPullResp getResult(DecodeContext context) {
-        int size = resultList == null ? 0 : resultList.size();
+        int size = results == null ? 0 : results.size();
         if (size != declaredResultsSize) {
             throw new PbException("results count mismatch: declared=" + declaredResultsSize + ", actual=" + size);
         }
-        if (resultList != null) {
+        if (results != null) {
             while (resultIndex < size) {
-                if (seqOffset < resultList.get(resultIndex).count) {
+                if (seqOffset < results.get(resultIndex).count) {
                     break;
                 }
                 resultIndex++;
@@ -135,8 +133,12 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (recordState != STATE_HEAD || fixedPos != 0) {
             throw new PbException("truncated record");
         }
-        results = resultList == null ? Collections.emptyList() : resultList;
-        records = recordList == null ? Collections.emptyList() : recordList;
+        if (results == null) {
+            results = Collections.emptyList();
+        }
+        if (records == null) {
+            records = Collections.emptyList();
+        }
         return this;
     }
 
@@ -310,30 +312,30 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     }
 
     private void finishRecord() {
-        while (resultIndex < resultList.size()
-                && seqOffset >= resultList.get(resultIndex).count) {
+        while (resultIndex < results.size()
+                && seqOffset >= results.get(resultIndex).count) {
             resultIndex++;
             seqOffset = 0;
         }
-        if (resultIndex >= resultList.size()) {
+        if (resultIndex >= results.size()) {
             throw new PbException("record count exceeds results");
         }
-        MqPullRespDetail result = resultList.get(resultIndex);
+        MqPullRespDetail result = results.get(resultIndex);
         if (result.queueId != queueId) {
             throw new PbException("record queueId mismatch: " + queueId + ", " + result.queueId);
         }
-        if (recordList == null) {
+        if (records == null) {
             int expected = 0;
-            for (MqPullRespDetail r : resultList) {
+            for (MqPullRespDetail r : results) {
                 expected += r.count;
                 if (expected < 0 || expected > 1024) {
                     expected = 1024;
                     break;
                 }
             }
-            recordList = new ArrayList<>(expected);
+            records = new ArrayList<>(expected);
         }
-        recordList.add(new DtMsg(queueId, header, body, timestamp, result.fromSeq + seqOffset));
+        records.add(new DtMsg(queueId, header, body, timestamp, result.fromSeq + seqOffset));
         seqOffset++;
 
         recordState = STATE_HEAD;
