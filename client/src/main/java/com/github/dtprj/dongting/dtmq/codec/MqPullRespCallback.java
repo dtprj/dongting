@@ -77,13 +77,10 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     @Override
     public void readVarNumber(DecodeContext context, int index, long value) {
         if (index == IDX_RESULTS_SIZE) {
-            if (value < 0 || value > ParseUtil.MAX_COLLECTION_SIZE) {
-                throw new PbException("invalid results size: " + value);
-            }
             if (results != null) {
                 throw new PbException("duplicate or misplaced results size field");
             }
-            results = new ArrayList<>((int) value);
+            results = ParseUtil.createArrayList((int) value);
         }
     }
 

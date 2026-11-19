@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.common.ByteArray;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -28,8 +26,6 @@ import java.util.ArrayList;
 public final class ParseUtil {
 
     public static final int MAX_COLLECTION_SIZE = 50000;
-
-    private static final DtLog log = DtLogs.getLogger(ParseUtil.class);
 
     /**
      * @return the string encoder on completion, or null if more input is required
@@ -150,12 +146,13 @@ public final class ParseUtil {
     }
 
     /**
-     * Creates a list with the suggested capacity, replacing an invalid size with zero.
+     * Creates a list with the suggested capacity.
+     *
+     * @throws PbException if the suggested size is invalid
      */
     public static <X> ArrayList<X> createArrayList(int suggestedSize) {
-        if (suggestedSize <= 0 || suggestedSize > MAX_COLLECTION_SIZE) {
-            log.warn("invalid suggested size: {}", suggestedSize);
-            suggestedSize = 0;
+        if (suggestedSize < 0 || suggestedSize > MAX_COLLECTION_SIZE) {
+            throw new PbException("invalid suggested size: " + suggestedSize);
         }
         return new ArrayList<>(suggestedSize);
     }
