@@ -25,11 +25,18 @@ public class MqPullRespDetail {
     public static final int IDX_TRUNCATED = 4;
 
     // 1-based; 0 is reserved
-    public long queueId;
+    public final long queueId;
     // 0-based
-    public long fromSeq;
+    public final long fromSeq;
     // next pull cursor = fromSeq + count
-    public int count;
+    public final int count;
     // no records; retry from fromSeq
-    public boolean truncated;
+    public final boolean truncated;
+
+    public MqPullRespDetail(long queueId, long fromSeq, int count, boolean truncated) {
+        this.queueId = queueId;
+        this.fromSeq = fromSeq;
+        this.count = count;
+        this.truncated = truncated;
+    }
 }

@@ -97,8 +97,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             }
             recordsFieldLen = fieldLen;
             parseRecords(buf);
-        } else {
-            buf.position(buf.limit());
         }
     }
 
@@ -398,12 +396,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             if (fromSeq < 0) {
                 throw new PbException("invalid fromSeq: " + fromSeq);
             }
-            MqPullRespDetail result = new MqPullRespDetail();
-            result.queueId = queueId;
-            result.fromSeq = fromSeq;
-            result.count = count;
-            result.truncated = truncated;
-            return result;
+            return new MqPullRespDetail(queueId, fromSeq, count, truncated);
         }
     }
 }
