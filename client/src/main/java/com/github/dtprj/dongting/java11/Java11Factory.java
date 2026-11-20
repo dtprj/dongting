@@ -23,14 +23,21 @@ import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
 import com.github.dtprj.dongting.unsafe11.NewUnsafe;
 
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * @author huangli
  */
 @SuppressWarnings({"unused"})
 public class Java11Factory extends VersionFactory {
+
+    private static final VarHandle INT_HANDLE =
+            MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle LONG_HANDLE =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
     @Override
     public AbstractRefCountUpdater newRefCountUpdater(boolean plain) {
@@ -74,5 +81,15 @@ public class Java11Factory extends VersionFactory {
     @Override
     public NioStatus newNioStatus() {
         return new Java11NioStatus();
+    }
+
+    @Override
+    public int getInt(byte[] src, int offset) {
+        return (int) INT_HANDLE.get(src, offset);
+    }
+
+    @Override
+    public long getLong(byte[] src, int offset) {
+        return (long) LONG_HANDLE.get(src, offset);
     }
 }

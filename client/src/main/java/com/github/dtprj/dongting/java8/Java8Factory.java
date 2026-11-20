@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * @author huangli
@@ -34,6 +35,7 @@ import java.nio.ByteBuffer;
 public class Java8Factory extends VersionFactory {
 
     private static final DtLog log = DtLogs.getLogger(Java8Factory.class);
+    private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
 
     private static final Method GET_CLEANER_METHOD;
     private static final Method CLEAN_METHOD;
@@ -105,5 +107,23 @@ public class Java8Factory extends VersionFactory {
     @Override
     public NioStatus newNioStatus() {
         return new Java8NioStatus();
+    }
+
+    @Override
+    public int getInt(byte[] src, int offset) {
+        if (offset < 0 || offset > src.length - 4) {
+            throw new ArrayIndexOutOfBoundsException("offset=" + offset + ", length=" + src.length);
+        }
+        int v = DtUnsafe.getInt(src, offset);
+        return BIG_ENDIAN ? v : Integer.reverseBytes(v);
+    }
+
+    @Override
+    public long getLong(byte[] src, int offset) {
+        if (offset < 0 || offset > src.length - 8) {
+            throw new ArrayIndexOutOfBoundsException("offset=" + offset + ", length=" + src.length);
+        }
+        long v = DtUnsafe.getLong(src, offset);
+        return BIG_ENDIAN ? v : Long.reverseBytes(v);
     }
 }

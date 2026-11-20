@@ -31,12 +31,14 @@ import java.nio.ByteBuffer;
  */
 public class DtUnsafe {
     private static final Unsafe UNSAFE;
+    private static final long BYTE_ARRAY_BASE_OFFSET;
 
     static {
         try {
             Field field = Unsafe.class.getDeclaredField("theUnsafe");
             field.setAccessible(true);
             UNSAFE = (Unsafe) field.get(null);
+            BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
         } catch (Exception e) {
             throw new DtException(e);
         }
@@ -68,5 +70,13 @@ public class DtUnsafe {
      */
     public static void freeDirectBuffer(ByteBuffer buffer) {
         UNSAFE.invokeCleaner(buffer);
+    }
+
+    public static int getInt(byte[] src, int offset) {
+        return UNSAFE.getInt(src, BYTE_ARRAY_BASE_OFFSET + offset);
+    }
+
+    public static long getLong(byte[] src, int offset) {
+        return UNSAFE.getLong(src, BYTE_ARRAY_BASE_OFFSET + offset);
     }
 }

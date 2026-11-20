@@ -46,6 +46,16 @@ public abstract class VersionFactory {
     public abstract void onSpinWait();
 
     public abstract NioStatus newNioStatus();
+
+    /**
+     * Reads a big-endian int from the byte array.
+     */
+    public abstract int getInt(byte[] src, int offset);
+
+    /**
+     * Reads a big-endian long from the byte array.
+     */
+    public abstract long getLong(byte[] src, int offset);
 }
 
 class VfHolder {

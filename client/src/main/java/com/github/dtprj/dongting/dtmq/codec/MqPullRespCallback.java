@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtmq.DtMsg;
 import com.github.dtprj.dongting.dtmq.MqPullResp;
 import com.github.dtprj.dongting.dtmq.MqPullRespDetail;
@@ -43,6 +44,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     private static final int CRC_LEN = 4;
 
     private static final byte[] EMPTY_BYTES = new byte[0];
+    private static final VersionFactory VF = VersionFactory.getInstance();
 
     private static final int STATE_HEAD = 0;
     private static final int STATE_FIXED = 1;
@@ -202,7 +204,7 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (fixedPos < REC_HEAD_LEN) {
             return false;
         }
-        beginRecord(getInt(fixedBuf, 0), getInt(fixedBuf, 4), getInt(fixedBuf, 8));
+        beginRecord(VF.getInt(fixedBuf, 0), VF.getInt(fixedBuf, 4), VF.getInt(fixedBuf, 8));
         if (fixedBuf.length < fixedHeaderLen) {
             fixedBuf = Arrays.copyOf(fixedBuf, fixedHeaderLen);
         }
@@ -233,8 +235,8 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (fixedPos < fixedHeaderLen) {
             return false;
         }
-        timestamp = getLong(fixedBuf, OFFSET_TIMESTAMP) & 0xFFFF_FFFF_FFFFL;
-        queueId = getLong(fixedBuf, OFFSET_BIZ_KEY);
+        timestamp = VF.getLong(fixedBuf, OFFSET_TIMESTAMP) & 0xFFFF_FFFF_FFFFL;
+        queueId = VF.getLong(fixedBuf, OFFSET_BIZ_KEY);
         initPayload();
         recordState = STATE_FIXED_CRC;
         skip = CRC_LEN;
@@ -333,24 +335,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         body = null;
         headerPos = 0;
         bodyPos = 0;
-    }
-
-    private static int getInt(byte[] src, int offset) {
-        return ((src[offset] & 0xFF) << 24)
-                | ((src[offset + 1] & 0xFF) << 16)
-                | ((src[offset + 2] & 0xFF) << 8)
-                | (src[offset + 3] & 0xFF);
-    }
-
-    private static long getLong(byte[] src, int offset) {
-        return ((long) (src[offset] & 0xFF) << 56)
-                | ((long) (src[offset + 1] & 0xFF) << 48)
-                | ((long) (src[offset + 2] & 0xFF) << 40)
-                | ((long) (src[offset + 3] & 0xFF) << 32)
-                | ((long) (src[offset + 4] & 0xFF) << 24)
-                | ((long) (src[offset + 5] & 0xFF) << 16)
-                | ((long) (src[offset + 6] & 0xFF) << 8)
-                | (src[offset + 7] & 0xFF);
     }
 
     private static final class ResultCallback implements PbCallback<MqPullRespDetail> {

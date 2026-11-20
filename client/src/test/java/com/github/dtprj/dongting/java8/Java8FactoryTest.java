@@ -20,6 +20,9 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 /**
  * @author huangli
  */
@@ -32,5 +35,23 @@ public class Java8FactoryTest {
         f.newMpscLinkedQueue();
         ByteBuffer buffer = ByteBuffer.allocateDirect(1);
         f.releaseDirectBuffer(buffer);
+    }
+
+    @Test
+    public void testGetIntGetLong() {
+        VersionFactory f = new Java8Factory();
+        byte[] bytes = new byte[16];
+        ByteBuffer.wrap(bytes).putInt(0, 0xF1F2F3F4).putLong(4, 0x0102030405060708L);
+        assertEquals(0xF1F2F3F4, f.getInt(bytes, 0));
+        assertEquals(0x01020304, f.getInt(bytes, 4));
+        assertEquals(0x05060708, f.getInt(bytes, 8));
+        assertEquals(0xF1F2F3F401020304L, f.getLong(bytes, 0));
+        assertEquals(0x0102030405060708L, f.getLong(bytes, 4));
+
+        ByteBuffer.wrap(bytes).putLong(3, 0x8899AABBCCDDEEFFL);
+        assertEquals(0x8899AABBCCDDEEFFL, f.getLong(bytes, 3));
+
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> f.getInt(new byte[3], 0));
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> f.getLong(new byte[8], -1));
     }
 }
