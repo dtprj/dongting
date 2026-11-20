@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.AbstractRefCountTest;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.common.VersionFactory;
 
 /**
  * @author huangli
@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.common.VersionFactory;
 public class Java11PlainRefCountTest extends AbstractRefCountTest {
     @Override
     protected RefCount createInstance() {
-        return new RefCount(VersionFactory.getInstance().newRefCountUpdater(true)){
+        return new RefCount(DtUtil.JDK_OPS.newRefCountUpdater(true)){
         };
     }
 }

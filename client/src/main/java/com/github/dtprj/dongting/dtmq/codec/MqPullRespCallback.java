@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.ParseUtil;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.dtmq.DtMsg;
 import com.github.dtprj.dongting.dtmq.MqPullResp;
 import com.github.dtprj.dongting.dtmq.MqPullRespDetail;
@@ -44,8 +44,6 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
     private static final int CRC_LEN = 4;
 
     private static final byte[] EMPTY_BYTES = new byte[0];
-    private static final VersionFactory VF = VersionFactory.getInstance();
-
     private static final int STATE_HEAD = 0;
     private static final int STATE_FIXED = 1;
     private static final int STATE_FIXED_CRC = 2;
@@ -204,7 +202,8 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (fixedPos < REC_HEAD_LEN) {
             return false;
         }
-        beginRecord(VF.getInt(fixedBuf, 0), VF.getInt(fixedBuf, 4), VF.getInt(fixedBuf, 8));
+        beginRecord(DtUtil.JDK_OPS.getInt(fixedBuf, 0), DtUtil.JDK_OPS.getInt(fixedBuf, 4),
+                DtUtil.JDK_OPS.getInt(fixedBuf, 8));
         if (fixedBuf.length < fixedHeaderLen) {
             fixedBuf = Arrays.copyOf(fixedBuf, fixedHeaderLen);
         }
@@ -235,8 +234,8 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
         if (fixedPos < fixedHeaderLen) {
             return false;
         }
-        timestamp = VF.getLong(fixedBuf, OFFSET_TIMESTAMP) & 0xFFFF_FFFF_FFFFL;
-        queueId = VF.getLong(fixedBuf, OFFSET_BIZ_KEY);
+        timestamp = DtUtil.JDK_OPS.getLong(fixedBuf, OFFSET_TIMESTAMP) & 0xFFFF_FFFF_FFFFL;
+        queueId = DtUtil.JDK_OPS.getLong(fixedBuf, OFFSET_BIZ_KEY);
         initPayload();
         recordState = STATE_FIXED_CRC;
         skip = CRC_LEN;

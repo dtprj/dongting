@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.JdkOps;
 import com.github.dtprj.dongting.net.NioStatus;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
@@ -32,7 +32,7 @@ import java.nio.ByteOrder;
  * @author huangli
  */
 @SuppressWarnings({"unused"})
-public class Java11Factory extends VersionFactory {
+public class Java11Ops extends JdkOps {
 
     private static final VarHandle INT_HANDLE =
             MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);

@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 
 import java.nio.ByteBuffer;
@@ -266,7 +266,7 @@ public class BuddyBufferPool extends ByteBufferPool {
                         globalIdleChunkList.returnIdleChunk(c);
                     } else if (direct) {
                         // drop
-                        VersionFactory.getInstance().releaseDirectBuffer(c.rootBuffer);
+                        DtUtil.JDK_OPS.releaseDirectBuffer(c.rootBuffer);
                     }
                 }
             }

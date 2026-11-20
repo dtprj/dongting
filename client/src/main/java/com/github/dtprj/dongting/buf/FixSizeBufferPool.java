@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.log.BugLog;
 
@@ -168,7 +169,7 @@ class FixSizeBufferPool {
             ByteBuffer buf = stack.pollFirst();
             updateCurrentUsedShareSizeAfterRemove();
             if (direct) {
-                SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+                DtUtil.JDK_OPS.releaseDirectBuffer(buf);
             } else if (weakRefCache != null) {
                 weakRefCache.moveIdleElementsToCache(buf);
             }
@@ -182,7 +183,7 @@ class FixSizeBufferPool {
             ByteBuffer buf = stack.pollFirst();
             updateCurrentUsedShareSizeAfterRemove();
             if (direct) {
-                SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+                DtUtil.JDK_OPS.releaseDirectBuffer(buf);
             }
         }
     }

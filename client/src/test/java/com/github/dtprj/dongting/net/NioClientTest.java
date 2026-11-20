@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.MockRuntimeException;
 import com.github.dtprj.dongting.common.TestUtil;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.test.TestPorts;
@@ -946,7 +945,7 @@ public class NioClientTest {
         client = new NioClient(c);
         client.start();
         client.waitStart(new DtTime(1, TimeUnit.SECONDS));
-        VersionFactory.getInstance().fullFence();
+        DtUtil.JDK_OPS.fullFence();
         Assertions.assertEquals(maxPacketSize >>> 1, c.maxPacketSize);
         Assertions.assertEquals(maxBodySize >>> 1, c.maxBodySize);
         Assertions.assertEquals(maxOutRequests >>> 1, c.maxOutRequests);

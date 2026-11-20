@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -138,7 +137,7 @@ public class Buffers {
             }
         } else {
             if (direct) {
-                VersionFactory.getInstance().releaseDirectBuffer(buf);
+                DtUtil.JDK_OPS.releaseDirectBuffer(buf);
             }
             rb.buffer = null;
         }

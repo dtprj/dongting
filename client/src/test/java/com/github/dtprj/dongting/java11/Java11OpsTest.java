@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.JdkOps;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -26,10 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * @author huangli
  */
-public class Java11FactoryTest {
+public class Java11OpsTest {
     @Test
     public void testGetIntGetLong() {
-        VersionFactory f = new Java11Factory();
+        JdkOps f = new Java11Ops();
         byte[] bytes = new byte[16];
         ByteBuffer.wrap(bytes).putInt(0, 0xF1F2F3F4).putLong(4, 0x0102030405060708L);
         assertEquals(0xF1F2F3F4, f.getInt(bytes, 0));

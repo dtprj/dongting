@@ -29,6 +29,10 @@ public class DtUtil {
     private static final DtLog log = DtLogs.getLogger(DtUtil.class);
 
     public static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
+
+    // impl classes must not access any DtUtil static during class init, or deadlock may occur
+    public static final JdkOps JDK_OPS = createJdkOps(JAVA_VER);
+
     public static final long MAX_MEMORY = Runtime.getRuntime().maxMemory();
 
     public static final int RPC_MAJOR_VER = 1;
@@ -59,6 +63,21 @@ public class DtUtil {
     public static void close(AutoCloseable... resources) {
         for (AutoCloseable res : resources) {
             close(res);
+        }
+    }
+
+    private static JdkOps createJdkOps(int javaVer) {
+        String className;
+        if (javaVer > 8) {
+            className = "com.github.dtprj.dongting.java11.Java11Ops";
+        } else {
+            className = "com.github.dtprj.dongting.java8.Java8Ops";
+        }
+        try {
+            return (JdkOps) Class.forName(className).getDeclaredConstructor().newInstance();
+        } catch (Throwable e) {
+            log.error("can't init JdkOps instance", e);
+            throw new DtException(e);
         }
     }
 

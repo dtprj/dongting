@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.java8;
 
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.JdkOps;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -26,10 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * @author huangli
  */
-public class Java8FactoryTest {
+public class Java8OpsTest {
     @Test
-    public void testJava8Factory() {
-        VersionFactory f = new Java8Factory();
+    public void testJava8Ops() {
+        JdkOps f = new Java8Ops();
         f.newRefCountUpdater(true);
         f.newRefCountUpdater(false);
         f.newMpscLinkedQueue();
@@ -39,7 +39,7 @@ public class Java8FactoryTest {
 
     @Test
     public void testGetIntGetLong() {
-        VersionFactory f = new Java8Factory();
+        JdkOps f = new Java8Ops();
         byte[] bytes = new byte[16];
         ByteBuffer.wrap(bytes).putInt(0, 0xF1F2F3F4).putLong(4, 0x0102030405060708L);
         assertEquals(0xF1F2F3F4, f.getInt(bytes, 0));

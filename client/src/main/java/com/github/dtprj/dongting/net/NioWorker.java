@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -629,7 +628,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ConfigBody cb = resp.getBody().config;
         if (config != null && config.serverHint) {
             ((NioClient) owner).processServerConfigHint(dtc.peer, cb);
-            VersionFactory.getInstance().fullFence();
+            DtUtil.JDK_OPS.fullFence();
         }
 
         ci.peer.status = PeerStatus.connected;

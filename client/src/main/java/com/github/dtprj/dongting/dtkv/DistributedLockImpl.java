@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtBugException;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -45,7 +44,6 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class DistributedLockImpl implements DistributedLock {
     private static final DtLog log = DtLogs.getLogger(DistributedLockImpl.class);
-    private static final VersionFactory VF = VersionFactory.getInstance();
 
     // Lock states
     private static final int STATE_NOT_LOCKED = 0;  // not holding lock
@@ -638,8 +636,8 @@ public class DistributedLockImpl implements DistributedLock {
             log.warn("ignore lock push because value length is invalid: {}, key: {}", value.length, key);
             return;
         }
-        int pushLockId = VF.getInt(value, 8);
-        int pushOpId = VF.getInt(value, 12);
+        int pushLockId = DtUtil.JDK_OPS.getInt(value, 8);
+        int pushOpId = DtUtil.JDK_OPS.getInt(value, 12);
 
         opLock.lock();
         try {

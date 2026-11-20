@@ -28,8 +28,8 @@ public class RefCount {
     public static final AtomicIntegerFieldUpdater<RefCount> REF_CNT_UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(RefCount.class, "refCnt");
 
-    private static final AbstractRefCountUpdater UPDATER = VersionFactory.getInstance().newRefCountUpdater(false);
-    private static final AbstractRefCountUpdater PLAIN_UPDATER = VersionFactory.getInstance().newRefCountUpdater(true);
+    private static final AbstractRefCountUpdater UPDATER = DtUtil.JDK_OPS.newRefCountUpdater(false);
+    private static final AbstractRefCountUpdater PLAIN_UPDATER = DtUtil.JDK_OPS.newRefCountUpdater(true);
     protected final AbstractRefCountUpdater updater;
 
     @SuppressWarnings({"unused", "FieldMayBeFinal"})

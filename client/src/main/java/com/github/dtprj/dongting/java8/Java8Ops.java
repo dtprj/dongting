@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.JdkOps;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioStatus;
@@ -32,9 +32,9 @@ import java.nio.ByteOrder;
  * @author huangli
  */
 @SuppressWarnings("unused")
-public class Java8Factory extends VersionFactory {
+public class Java8Ops extends JdkOps {
 
-    private static final DtLog log = DtLogs.getLogger(Java8Factory.class);
+    private static final DtLog log = DtLogs.getLogger(Java8Ops.class);
     private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
     private static final boolean UNALIGNED = unaligned();
 

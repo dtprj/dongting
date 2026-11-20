@@ -16,10 +16,10 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.ByteArray;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -49,7 +49,6 @@ import java.util.function.Supplier;
  */
 class KvImpl {
     private static final DtLog log = DtLogs.getLogger(KvImpl.class);
-    private static final VersionFactory VF = VersionFactory.getInstance();
 
     private static final int GC_ITEMS = 500;
 
@@ -977,7 +976,7 @@ class KvImpl {
         if (data == null || data.length < 8) {
             return 0L;
         }
-        return VF.getLong(data, 0);
+        return DtUtil.JDK_OPS.getLong(data, 0);
     }
 
 

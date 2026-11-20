@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -181,7 +180,7 @@ public class GlobalIdleChunkList extends ShareBudget implements Runnable {
 
     private void destroy(BuddyChunk chunk) {
         if (direct) {
-            VersionFactory.getInstance().releaseDirectBuffer(chunk.rootBuffer);
+            DtUtil.JDK_OPS.releaseDirectBuffer(chunk.rootBuffer);
         }
     }
 

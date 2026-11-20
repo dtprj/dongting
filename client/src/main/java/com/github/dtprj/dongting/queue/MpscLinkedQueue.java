@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.queue;
 
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.DtUtil;
 
 import java.util.Objects;
 import java.util.concurrent.locks.LockSupport;
@@ -25,7 +25,6 @@ import java.util.concurrent.locks.LockSupport;
  */
 @SuppressWarnings({"unused"})
 public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
-    private static final VersionFactory VERSION_FACTORY = VersionFactory.getInstance();
     @SuppressWarnings("rawtypes")
     private static final LinkedNode SHUTDOWN_NODE = new LinkedNode<>(null);
     protected LinkedNode<E> head;
@@ -37,7 +36,7 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
     }
 
     public static <E> MpscLinkedQueue<E> newInstance() {
-        return VERSION_FACTORY.newMpscLinkedQueue();
+        return DtUtil.JDK_OPS.newMpscLinkedQueue();
     }
 
     public E relaxedPoll() {
@@ -136,7 +135,7 @@ public abstract class MpscLinkedQueue<E> extends LinkedQueuePadding1<E> {
 
     private void spin(int i) {
         if (i >= 0 && i < 100) {
-            VERSION_FACTORY.onSpinWait();
+            DtUtil.JDK_OPS.onSpinWait();
         } else if (i < 300) {
             Thread.yield();
         } else if (i < 2000) {

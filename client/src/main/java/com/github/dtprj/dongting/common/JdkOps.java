@@ -15,21 +15,17 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioStatus;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.nio.ByteBuffer;
 
 /**
+ * JDK version dependent operations; impl classes are loaded by {@link DtUtil#JDK_OPS}.
+ *
  * @author huangli
  */
-public abstract class VersionFactory {
-
-    public static VersionFactory getInstance() {
-        return VfHolder.FACTORY;
-    }
+public abstract class JdkOps {
 
     public abstract AbstractRefCountUpdater newRefCountUpdater(boolean plain);
 
@@ -56,30 +52,4 @@ public abstract class VersionFactory {
      * Reads a big-endian long from the byte array.
      */
     public abstract long getLong(byte[] src, int offset);
-}
-
-class VfHolder {
-    private static final DtLog log = DtLogs.getLogger(RefCount.class);
-
-    static final VersionFactory FACTORY;
-
-    static {
-        String className;
-        if (DtUtil.JAVA_VER > 8) {
-            className = "com.github.dtprj.dongting.java11.Java11Factory";
-        } else {
-            className = "com.github.dtprj.dongting.java8.Java8Factory";
-        }
-        VersionFactory f = null;
-        try {
-            Class<?> factoryClass = Class.forName(className);
-            f = (VersionFactory) factoryClass.getDeclaredConstructor().newInstance();
-        } catch (Throwable e) {
-            log.error("can't init VersionFactory instance", e);
-            throw new DtException(e);
-        } finally {
-            FACTORY = f;
-        }
-
-    }
 }

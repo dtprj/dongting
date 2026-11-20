@@ -18,9 +18,9 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.MutableBool;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -720,7 +720,7 @@ public class MemberManager {
 
         @Override
         public FrameCallResult execute(Void v) {
-            VersionFactory.getInstance().fullFence();
+            DtUtil.JDK_OPS.fullFence();
             if (raftStatus.nodeIdOfMembers.equals(members)
                     && raftStatus.nodeIdOfObservers.equals(observers)
                     && raftStatus.nodeIdOfPreparedMembers.equals(preparedMembers)

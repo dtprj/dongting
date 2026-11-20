@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.DtUtil;
 
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
@@ -31,7 +31,6 @@ import java.util.function.Consumer;
  * @author huangli
  */
 public class SimpleByteBufferPool extends ByteBufferPool {
-    static final VersionFactory VF = VersionFactory.getInstance();
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
     final int[] bufSizes;
@@ -130,7 +129,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
         // bucket full: release directly
         if (direct) {
-            VF.releaseDirectBuffer(buf);
+            DtUtil.JDK_OPS.releaseDirectBuffer(buf);
         }
     }
 

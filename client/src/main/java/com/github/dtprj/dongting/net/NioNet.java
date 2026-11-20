@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.PerfConsts;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -57,7 +56,7 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     public NioNet(NioConfig config) {
         this.config = config;
-        this.nioStatus = VersionFactory.getInstance().newNioStatus();
+        this.nioStatus = DtUtil.JDK_OPS.newNioStatus();
         this.perfCallback = config.perfCallback;
         this.server = config instanceof NioServerConfig;
         if (config.maxPacketSize < config.maxBodySize + SIZE_DELTA) {
@@ -191,7 +190,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             throw new NetException("packet body size " + bodySize
                     + " exceeds max body size " + config.maxBodySize);
         }
-        VersionFactory.getInstance().acquireFence();
+        DtUtil.JDK_OPS.acquireFence();
     }
 
     public final void releasePermit(WritePacket request) {

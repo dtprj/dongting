@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.dtkv.AutoRenewalLock;
 import com.github.dtprj.dongting.dtkv.AutoRenewalLockListener;
 import com.github.dtprj.dongting.test.WaitUtil;
@@ -267,7 +267,7 @@ class AutoRenewalLockImplTest extends ServerClientLockTest {
         lock.start();
         WaitUtil.waitUtil(1, listener.acquiredCount::get);
         client1.autoRenewalMinValidLeaseMillis = 10000;
-        VersionFactory.getInstance().fullFence();
+        DtUtil.JDK_OPS.fullFence();
         WaitUtil.waitUtil(1, listener.lostCount::get);
         WaitUtil.waitUtil(2, listener.acquiredCount::get);
         lock.stop(new DtTime(1, TimeUnit.SECONDS));

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.buf;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtCleanable;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 
@@ -155,7 +156,7 @@ public final class RefBuffer extends RefCount implements Encodable, DtCleanable 
         } else {
             // should be direct, SimpleByteBufferPool.newUnpooledRefBuffer(),
             // the heap buffer less than threshold is dummy and not call doClean
-            SimpleByteBufferPool.VF.releaseDirectBuffer(buffer);
+            DtUtil.JDK_OPS.releaseDirectBuffer(buffer);
             this.buffer = null;
         }
     }

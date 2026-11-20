@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FutureCallback;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtkv.DistributedLockImpl;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
@@ -138,7 +137,7 @@ public class ServerClientLockTest {
                     if (autoRenewalMinValidLeaseMillis == 0) {
                         return super.getAutoRenewalMinValidLeaseMillis();
                     } else {
-                        VersionFactory.getInstance().fullFence();
+                        DtUtil.JDK_OPS.fullFence();
                         return autoRenewalMinValidLeaseMillis;
                     }
                 }

@@ -57,7 +57,7 @@ public abstract class ByteBufferPool {
     }
 
     // releasor=null, dummy=!direct: heap unpooled relies on GC, direct unpooled is released via
-    // RefBuffer.doClean -> VF.releaseDirectBuffer
+    // RefBuffer.doClean -> DtUtil.JDK_OPS.releaseDirectBuffer
     protected RefBuffer newUnpooledRefBuffer(boolean plain, int requestSize) {
         return new RefBuffer(plain, allocate(requestSize), null, !direct);
     }

@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 public class Java11RefCountTest extends AbstractMultiThreadRefCountTest {
     @Override
     protected RefCount createInstance() {
-        return new RefCount(new Java11Factory().newRefCountUpdater(false)){
+        return new RefCount(new Java11Ops().newRefCountUpdater(false)){
         };
     }
 
