@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.ByteArray;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.KvClientConfig;
 import com.github.dtprj.dongting.dtkv.KvCodes;
@@ -48,6 +49,7 @@ import java.util.function.Supplier;
  */
 class KvImpl {
     private static final DtLog log = DtLogs.getLogger(KvImpl.class);
+    private static final VersionFactory VF = VersionFactory.getInstance();
 
     private static final int GC_ITEMS = 500;
 
@@ -975,14 +977,7 @@ class KvImpl {
         if (data == null || data.length < 8) {
             return 0L;
         }
-        return ((long) (data[0] & 0xFF) << 56) |
-                ((long) (data[1] & 0xFF) << 48) |
-                ((long) (data[2] & 0xFF) << 40) |
-                ((long) (data[3] & 0xFF) << 32) |
-                ((long) (data[4] & 0xFF) << 24) |
-                ((long) (data[5] & 0xFF) << 16) |
-                ((long) (data[6] & 0xFF) << 8) |
-                ((long) (data[7] & 0xFF));
+        return VF.getLong(data, 0);
     }
 
 
