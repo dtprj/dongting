@@ -117,14 +117,14 @@ public final class MqPullFrame extends FiberFrame<MqPullRespPacket> {
         this.channel = channel;
         this.limit = limit;
         this.bytesLimit = bytesLimit;
+        this.deadline = Objects.requireNonNull(deadline);
         if (waitMillis > 0) {
             this.longPolling = true;
-            this.longPollingWaitEnd = mq.groupConfig.ts.nanoTime + TimeUnit.MILLISECONDS.toNanos(waitMillis);
+            this.longPollingWaitEnd = deadline.createTimeNanos + TimeUnit.MILLISECONDS.toNanos(waitMillis);
         } else {
             this.longPolling = false;
             this.longPollingWaitEnd = 0;
         }
-        this.deadline = Objects.requireNonNull(deadline);
         this.queueIds = queueIds;
         this.fromSeqs = fromSeqs;
         int len = queueIds.length;
