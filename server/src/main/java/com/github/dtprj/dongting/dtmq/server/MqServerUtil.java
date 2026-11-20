@@ -28,7 +28,7 @@ public final class MqServerUtil {
 
     public static void initMqServer(RaftServer server) {
         server.getNioServer().register(Commands.DTMQ_SEND, new MqSendProcessor(server), null);
-        server.getNioServer().register(Commands.DTMQ_PULL, new MqPullProcessor(server), null);
+        server.addRaftGroupProcessor(server.getNioServer(), Commands.DTMQ_PULL, new MqPullProcessor(server));
     }
 
     static DtMQ getStateMachine(ReqInfo<?> reqInfo) {

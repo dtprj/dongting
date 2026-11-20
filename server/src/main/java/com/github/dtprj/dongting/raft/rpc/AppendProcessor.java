@@ -118,14 +118,14 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     // decode in io thread, so it does not occupy raft fiber time
     @Override
-    protected void preProcess(ReqInfoEx<Object> reqInfo) {
+    protected boolean preProcess(ReqInfoEx<Object> reqInfo) {
         if (reqInfo.reqFrame.command != Commands.RAFT_APPEND_ENTRIES) {
-            return;
+            return false;
         }
         AppendReq req = (AppendReq) reqInfo.reqFrame.getBody();
         List<RaftTask> logs = req.logs;
         if (logs == null || logs.isEmpty()) {
-            return;
+            return false;
         }
         RaftCodecFactory codecFactory = reqInfo.raftGroup.getStateMachine();
         WorkerThread t = WorkerThread.currentWorkerThread();
@@ -139,6 +139,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
             li.bizBody = decode(false, codecFactory, decoder, context, rd.prepareReadBizBody(), rd);
             rd.reset();
         }
+        return false;
     }
 
     private Object decode(boolean header, RaftCodecFactory codecFactory, Decoder decoder,

@@ -57,8 +57,11 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
     /**
      * Run in io thread before the request is offered to the processor fiber, may decode body here.
      * If it throws, the request is cleaned and an error response is returned, processInFiberGroup is not called.
+     * If it returns true, the request ownership is transferred to the implementation: the request is not
+     * offered to the processor fiber, and reqFrame.clean() is not called.
      */
-    protected void preProcess(@SuppressWarnings("unused") ReqInfoEx<T> reqInfo) {
+    protected boolean preProcess(@SuppressWarnings("unused") ReqInfoEx<T> reqInfo) {
+        return false;
     }
 
     public FiberChannel<Object> registerChannel(FiberGroup fg, GroupComponents gc) {
@@ -143,7 +146,10 @@ public abstract class RaftSequenceProcessor<T> extends RaftProcessor<T> {
                     "raft group not initialized: " + reqInfo.raftGroup.getGroupId());
         } else {
             try {
-                preProcess(rix);
+                if (preProcess(rix)) {
+                    // ownership transferred, do not clean or offer
+                    return null;
+                }
             } catch (Throwable e) {
                 log.error("preProcess fail, command={}", reqInfo.reqFrame.command, e);
                 reqInfo.reqFrame.clean();

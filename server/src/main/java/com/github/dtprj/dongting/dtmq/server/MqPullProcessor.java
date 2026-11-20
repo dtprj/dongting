@@ -21,18 +21,19 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.dtmq.codec.MqPullReq;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
 import com.github.dtprj.dongting.net.WorkerThread;
-import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.server.RaftProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
+import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
-final class MqPullProcessor extends RaftProcessor<MqPullReq> {
+final class MqPullProcessor extends RaftSequenceProcessor<MqPullReq> {
     MqPullProcessor(RaftServer raftServer) {
         super(raftServer, true, false);
     }
@@ -48,44 +49,66 @@ final class MqPullProcessor extends RaftProcessor<MqPullReq> {
     }
 
     /**
-     * run in io thread.
+     * Run in io thread. If it returns true, the lease is not valid yet and the request ownership
+     * is transferred: this processor waits for group ready, re-checks the lease, and starts
+     * the pull fiber in the raft thread.
      */
     @Override
-    protected WritePacket doProcess(ReqInfo<MqPullReq> reqInfo) {
-        DtMQ mq = MqServerUtil.getStateMachine(reqInfo);
-        if (mq == null) {
-            reqInfo.reqFrame.clean();
-            return null;
-        }
-        pullRead(reqInfo, mq, (RaftGroupImpl) reqInfo.raftGroup);
-        return null;
+    protected boolean preProcess(ReqInfoEx<MqPullReq> reqInfo) {
+        return !leaseCheck(reqInfo);
     }
 
-    // run in io thread, or in raft thread when the group ready future completes
-    private void pullRead(ReqInfo<MqPullReq> reqInfo, DtMQ mq, RaftGroupImpl group) {
+    // run in raft thread
+    @Override
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<MqPullReq> reqInfo) {
+        startPullFiber(reqInfo, true);
+        return FiberFrame.voidCompletedFrame();
+    }
+
+    // run in io thread, or in raft thread when the group ready future completes.
+    // returns true if the lease is valid; false means the request ownership is kept by this method
+    private boolean leaseCheck(ReqInfoEx<MqPullReq> reqInfo) {
+        RaftGroupImpl group = reqInfo.raftGroup;
         // the group ready callback may run in io thread if the future is already done
         Thread t = Thread.currentThread();
         Timestamp ts = t == group.fiberGroup.thread ? group.raftStatus.ts : ((WorkerThread) t).ts;
         try {
-            if (!group.isLeaseReadValid(ts, reqInfo.reqContext.getTimeout())) {
-                group.addGroupReadyListener(reqInfo.reqContext.getTimeout()).whenComplete((v, ex) -> {
-                    if (ex == null) {
-                        pullRead(reqInfo, mq, group);
-                    } else {
-                        reqInfo.reqFrame.clean();
-                        writeErrorResp(reqInfo, ex);
-                    }
-                });
-                return;
+            if (group.isLeaseReadValid(ts, reqInfo.reqContext.getTimeout())) {
+                return true;
             }
+            group.addGroupReadyListener(reqInfo.reqContext.getTimeout()).whenComplete((v, ex) -> {
+                if (ex == null) {
+                    // follower also completes the ready future, so re-check lease here.
+                    // the callback may run in io thread, so dispatch via fireFiber
+                    if (leaseCheck(reqInfo)) {
+                        startPullFiber(reqInfo, false);
+                    }
+                } else {
+                    reqInfo.reqFrame.clean();
+                    writeErrorResp(reqInfo, ex);
+                }
+            });
         } catch (Exception e) {
             reqInfo.reqFrame.clean();
             writeErrorResp(reqInfo, e);
+        }
+        return false;
+    }
+
+    // if the caller is not in the raft thread, the fiber is dispatched to the raft thread via fireFiber
+    private void startPullFiber(ReqInfoEx<MqPullReq> reqInfo, boolean inRaftThread) {
+        DtMQ mq = MqServerUtil.getStateMachine(reqInfo);
+        if (mq == null) {
+            reqInfo.reqFrame.clean();
             return;
         }
-        if (!group.fiberGroup.fireFiber("mqPull", new PullFrame(reqInfo, mq))) {
+        FiberGroup fg = reqInfo.raftGroup.fiberGroup;
+        Fiber pullFiber = new Fiber("mqPull", fg, new PullFrame(reqInfo, mq));
+        if (inRaftThread) {
+            pullFiber.start();
+        } else if (!fg.fireFiber(pullFiber)) {
             reqInfo.reqFrame.clean();
-            reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(group.groupId));
+            reqInfo.reqContext.writeRespInBizThreads(createStoppedResp(reqInfo.raftGroup.getGroupId()));
         }
     }
 
