@@ -36,6 +36,7 @@ public class Java8Factory extends VersionFactory {
 
     private static final DtLog log = DtLogs.getLogger(Java8Factory.class);
     private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
+    private static final boolean UNALIGNED = unaligned();
 
     private static final Method GET_CLEANER_METHOD;
     private static final Method CLEAN_METHOD;
@@ -109,13 +110,33 @@ public class Java8Factory extends VersionFactory {
         return new Java8NioStatus();
     }
 
+    // JDK 8 has no public API for this; unknown architectures use the safe path
+    private static boolean unaligned() {
+        String arch;
+        try {
+            arch = System.getProperty("os.arch", "");
+        } catch (SecurityException e) {
+            return false;
+        }
+        return arch.equals("i386") || arch.equals("x86")
+                || arch.equals("amd64") || arch.equals("x86_64")
+                || arch.equals("ppc64") || arch.equals("ppc64le")
+                || arch.equals("aarch64");
+    }
+
     @Override
     public int getInt(byte[] src, int offset) {
         if (offset < 0 || offset > src.length - 4) {
             throw new ArrayIndexOutOfBoundsException("offset=" + offset + ", length=" + src.length);
         }
-        int v = DtUnsafe.getInt(src, offset);
-        return BIG_ENDIAN ? v : Integer.reverseBytes(v);
+        if (UNALIGNED) {
+            int v = DtUnsafe.getInt(src, offset);
+            return BIG_ENDIAN ? v : Integer.reverseBytes(v);
+        }
+        return ((src[offset] & 0xFF) << 24)
+                | ((src[offset + 1] & 0xFF) << 16)
+                | ((src[offset + 2] & 0xFF) << 8)
+                | (src[offset + 3] & 0xFF);
     }
 
     @Override
@@ -123,7 +144,17 @@ public class Java8Factory extends VersionFactory {
         if (offset < 0 || offset > src.length - 8) {
             throw new ArrayIndexOutOfBoundsException("offset=" + offset + ", length=" + src.length);
         }
-        long v = DtUnsafe.getLong(src, offset);
-        return BIG_ENDIAN ? v : Long.reverseBytes(v);
+        if (UNALIGNED) {
+            long v = DtUnsafe.getLong(src, offset);
+            return BIG_ENDIAN ? v : Long.reverseBytes(v);
+        }
+        return ((long) (src[offset] & 0xFF) << 56)
+                | ((long) (src[offset + 1] & 0xFF) << 48)
+                | ((long) (src[offset + 2] & 0xFF) << 40)
+                | ((long) (src[offset + 3] & 0xFF) << 32)
+                | ((long) (src[offset + 4] & 0xFF) << 24)
+                | ((long) (src[offset + 5] & 0xFF) << 16)
+                | ((long) (src[offset + 6] & 0xFF) << 8)
+                | (src[offset + 7] & 0xFF);
     }
 }
