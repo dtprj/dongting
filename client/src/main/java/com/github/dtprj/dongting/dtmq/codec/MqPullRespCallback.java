@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.dtmq.MqPullResp;
 import com.github.dtprj.dongting.dtmq.MqPullRespDetail;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -312,15 +311,11 @@ public class MqPullRespCallback extends MqPullResp implements PbCallback<MqPullR
             throw new PbException("record queueId mismatch: " + queueId + ", " + result.queueId);
         }
         if (records == null) {
-            int expected = 0;
+            int msgCount = 0;
             for (MqPullRespDetail r : results) {
-                expected += r.count;
-                if (expected < 0 || expected > 1024) {
-                    expected = 1024;
-                    break;
-                }
+                msgCount += r.count;
             }
-            records = new ArrayList<>(expected);
+            records = ParseUtil.createArrayList(msgCount);
         }
         records.add(new DtMsg(queueId, header, body, timestamp, result.fromSeq + seqOffset));
         seqOffset++;
